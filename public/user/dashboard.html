@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard</title>
+  <!-- Links -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" />
+  <link rel="stylesheet" href="/css/main.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- navbar -->
+  <div id="navbar-container"></div>
+
+  <!-- dashboard -->
+  <div class="container py-4">
+    <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+      <!-- dropdown for delecting a device to monitor -->
+      <select class="form-select" style="width: 220px;" aria-label="Select device">
+        <option selected id="deviceName"></option>
+      </select>
+      <!-- manage device button to redirect to device management page -->
+      <a href="device_management.html" class="btn btn-primary px-4">Manage Device</a>
+    </div>
+
+
+    <div class="card mb-4 p-3">
+      <div class="row g-3 align-items-center">
+        <!-- battery status -->
+        <div class="col-12 col-lg-7">
+          <h5 class="fw-bold mb-3">Battery Status</h5>
+          <div class="d-flex align-items-center mb-2">
+            <div class="battery-icon">
+              <div class="battery-level" id="batteryLevelBar"></div>
+            </div>
+            <span class="fs-5 fw-bold" id="batteryPercent"></span>
+          </div>
+          <!-- recent activity -->
+          <h5 class="fw-bold mt-4 mb-2">Recent Activity</h5>
+          <div><span class="fw-semibold">Last Movement:</span> <span id="lastMovement">Loading...</span></div>
+          <div><span class="fw-semibold">Obstacle Detected:</span> <span id="lastObstacle">Loading...</span></div>
+          <div><span class="fw-semibold">Movement Anomalies:</span> <span id="movementAnomalies">Loading...</span></div>
+        </div>
+        <!-- map placeholder for google maps integration -->
+        <div class="col-12 col-lg-5">
+          <div class="rounded" style="min-height: 200px; padding: 5px;">
+            <div class="map-placeholder d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 4px;">
+              <div class="text-center text-muted">
+                <i class="fas fa-map-marked-alt fa-3x mb-3"></i>
+                <h6>Map Placeholder</h6>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- charts -->
+    <div class="row g-3">
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card p-4 card-graph text-center">
+          <canvas id="obstacleChart" height="120"></canvas>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card p-4 card-graph text-center">
+          <canvas id="usageChart" height="120"></canvas>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card p-4 card-graph text-center">
+          <canvas id="emergencyChart" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script>
+    // load navbar
+    fetch('/components/navbar.html')
+      .then(response => response.text())
+      .then(html => {
+        document.getElementById('navbar-container').innerHTML = html;
+      })
+      .catch(error => console.error('Error loading navbar:', error));
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      // load devices
+      try {
+        // fetch devices from the api
+        const devicesRes = await fetch('/api/devices', { credentials: 'include' });
+        const devicesData = await devicesRes.json();
+        
+        const deviceSelect = document.querySelector('select.form-select');
+        deviceSelect.innerHTML = '';
+        
+        // if devices are found, it will be in the dropdown list
+        if (devicesData.success && devicesData.devices.length > 0) {
+          devicesData.devices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.device_id;
+            option.textContent = device.device_name || `Device ${device.serial_number}`;
+            deviceSelect.appendChild(option);
+          });
+        } else {
+          deviceSelect.innerHTML = '<option selected disabled>No devices found</option>';
+        }
+      } catch (error) {
+        console.error('Error loading devices:', error);
+        const deviceSelect = document.querySelector('select.form-select');
+        deviceSelect.innerHTML = '<option selected disabled>Error loading devices</option>';
+      }
+
+      try {
+        const res = await fetch('/api/user/device/status');
+        const data = await res.json();
+
+        if (data.device) {
+          document.getElementById("batteryLevelBar").style.width = data.device.battery_level + "%";
+          document.getElementById("batteryLevelBar").style.backgroundColor = data.device.battery_level > 20 ? '#00c800' : 'red';
+          document.getElementById("batteryPercent").textContent = data.device.battery_level + "%";
+
+          document.getElementById("lastMovement").textContent = data.device.lastMovement || "No data";
+          document.getElementById("lastObstacle").textContent = data.device.lastObstacle || "No data";
+          document.getElementById("movementAnomalies").textContent = data.device.movementAnomalies || "No data";
+        } else {
+          document.getElementById("batteryLevelBar").style.width = "0%";
+          document.getElementById("batteryPercent").textContent = "No device";
+          document.getElementById("lastMovement").textContent = "No device linked";
+          document.getElementById("lastObstacle").textContent = "No device linked";
+          document.getElementById("movementAnomalies").textContent = "No device linked";
+        }
+      } catch (error) {
+        console.error("Failed to load device status", error);
+      }
+
+      // Initialize charts
+      const obstacleCtx = document.getElementById('obstacleChart');
+      // create a bar chart for obstacles detected each day
+      new Chart(obstacleCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+          datasets: [{
+            label: 'Obstacles',
+            data: [],
+            backgroundColor: '#007bff'
+          }]
+        }
+      });
+
+      // create a line chart for usage in minutes
+      const usageCtx = document.getElementById('usageChart');
+      new Chart(usageCtx, {
+        type: 'line',
+        data: {
+          labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+          datasets: [{
+            label: 'Usage (mins)',
+            data: [],
+            borderColor: '#28a745',
+            fill: false
+          }]
+        }
+      });
+
+      // create a bar chart for emergency presses every week
+      const emergencyCtx = document.getElementById('emergencyChart');
+      new Chart(emergencyCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+          datasets: [{
+            label: 'Emergency Presses',
+            data: [],
+            backgroundColor: '#dc3545'
+          }]
+        }
+      });
+
+      // Add click handlers to chart containers
+      const obstacleCard = document.querySelector('#obstacleChart').closest('.card-graph');
+      const usageCard = document.querySelector('#usageChart').closest('.card-graph');
+      const emergencyCard = document.querySelector('#emergencyChart').closest('.card-graph');
+
+      obstacleCard.addEventListener('click', function() {
+        window.location.href = '/user/obstacle_details.html';
+      });
+
+      usageCard.addEventListener('click', function() {
+        window.location.href = '/user/usage_details.html';
+      });
+
+      emergencyCard.addEventListener('click', function() {
+        window.location.href = '/user/emergency_details.html';
+      });
+    });
+  </script>
+</body>
+</html>

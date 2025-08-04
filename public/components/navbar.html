@@ -1,0 +1,117 @@
+<!-- Navbar Component -->
+<nav class="navbar d-flex justify-content-between align-items-center">
+  <span class="navbar-brand mb-0">PathPal</span>
+  <div class="d-flex align-items-center position-relative">
+    
+    <!-- Notification Dropdown -->
+    <div class="dropdown">
+      <i class="fas fa-bell notification-icon" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false"></i>
+      <ul class="dropdown-menu dropdown-menu-end p-2 shadow" aria-labelledby="notificationDropdown" style="width: 300px; max-height: 300px; overflow-y: auto;">
+        <li class="text-center py-3">
+          <div class="text-muted">
+            <i class="fas fa-bell-slash mb-2" style="font-size: 1.5rem;"></i>
+            <p class="mb-0">No notifications</p>
+            <small>You're all caught up!</small>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Profile Dropdown -->
+    <div class="dropdown ms-3">
+      <div class="d-flex align-items-center" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <span class="navbar-text ms-2" id="userInfo">Loading...</span>
+        <i class="fas fa-chevron-down ms-2" style="font-size: 0.8rem;"></i>
+      </div>
+      <ul class="dropdown-menu dropdown-menu-end shadow">
+        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#profileModal"><i class="fas fa-user me-2"></i>Profile</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-user me-2"></i>Change Password</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item text-danger" href="#" id="logoutBtn"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Profile Modal -->
+<div class="modal fade" id="profileModal" tabindex="-1" aria-labelledby="profileModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title fw-bold" id="profileModalLabel">User Profile</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Username</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="profileUsernameInput" readonly>
+              <button class="btn btn-primary edit-field" type="button" data-field="username">
+                <i class="fas fa-edit"></i>
+              </button>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Email</label>
+            <div class="input-group">
+              <input type="email" class="form-control" id="profileEmailInput" readonly>
+              <button class="btn btn-primary edit-field" type="button" data-field="email">
+                <i class="fas fa-edit"></i>
+              </button>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Phone Number</label>
+            <div class="input-group">
+              <input type="tel" class="form-control" id="profilePhone" readonly>
+              <button class="btn btn-primary edit-field" type="button" data-field="phone">
+                <i class="fas fa-edit"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Password Modal -->
+<div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title fw-bold" id="passwordModalLabel">Change Password</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="changePasswordForm">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Current Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="currentPassword" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">New Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="newPassword" required>
+            <div id="passwordReq" class="password-requirements" aria-live="polite" aria-atomic="true">
+              Minimum of 8 characters, at least 1 uppercase, 1 lowercase, 1 number and 1 special character.
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Confirm New Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="confirmPassword" required>
+            <div id="passwordMatchMsg" class="password-match-message" aria-live="polite" aria-atomic="true"></div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="savePasswordBtn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div> 

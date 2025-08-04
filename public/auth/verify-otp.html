@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verify OTP</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+
+<body>
+  <div class="container d-flex justify-content-center align-items-center vh-100">
+    <div class="card shadow p-4" style="width: 100%; max-width: 400px;">
+      <h3 class="text-center mb-4 fw-bold">VERIFY OTP</h3>
+
+      <form id="verifyOtpForm" novalidate>
+        <div class="mb-3">
+          <input type="text" id="otp" class="form-control" placeholder="Enter OTP" required />
+        </div>
+        <div class="mb-3 d-flex align-items-center">
+          <button type="button" id="resend-otp-btn" class="btn btn-link p-0 me-2" style="font-size:0.95rem;" disabled>Resend OTP</button>
+          <span id="resend-timer" style="font-size:0.95rem;"></span>
+        </div>
+        <div class="d-grid mb-2">
+          <button type="submit" class="btn btn-primary">Verify OTP</button>
+        </div>
+      </form>
+      
+      <form id="resetPasswordForm" novalidate style="display:none;">
+        <div class="mb-3">
+          <input type="password" id="newPassword" class="form-control" placeholder="New Password" required />
+          <div id="passwordReq" class="password-requirements" aria-live="polite" aria-atomic="true">
+            Minimum of 8 characters, at least 1 uppercase, 1 lowercase, 1 number and 1 special character.
+          </div>
+        </div>
+        <div class="mb-3">
+          <input type="password" id="confirmPassword" class="form-control" placeholder="Confirm New Password" required />
+          <div id="passwordMatchMsg" class="password-match-message"></div>
+        </div>
+        <div class="d-grid mb-2">
+          <button type="submit" class="btn btn-primary">Reset Password</button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <script>
+    const verifyOtpForm = document.getElementById('verifyOtpForm');
+    const resetPasswordForm = document.getElementById('resetPasswordForm');
+    const urlParams = new URLSearchParams(window.location.search);
+    const email = urlParams.get('email');
+    let otpValue = '';
+    
+    const resendBtn = document.getElementById('resend-otp-btn');
+    const timerSpan = document.getElementById('resend-timer');
+    let cooldown = 30;
+    
+    function startCooldown() {
+      resendBtn.disabled = true;
+      let timeLeft = cooldown;
+      timerSpan.textContent = ` (${timeLeft}s)`;
+      const interval = setInterval(() => {
+        timeLeft--;
+        timerSpan.textContent = ` (${timeLeft}s)`;
+        if (timeLeft <= 0) {
+          clearInterval(interval);
+          resendBtn.disabled = false;
+          timerSpan.textContent = '';
+        }
+      }, 1000);
+    }
+    
+    resendBtn.addEventListener('click', async () => {
+      resendBtn.disabled = true;
+      if (!email) {
+        Swal.fire({
+          title: 'Missing Email',
+          text: 'Email not found in URL. Please go back to the forgot password page and try again.',
+          icon: 'error',
+          confirmButtonText: 'OK'
+        });
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          Swal.fire({
+            title: 'OTP Resent',
+            text: 'A new OTP has been sent to your email.',
+            icon: 'success',
+            confirmButtonText: 'OK'
+          });
+          startCooldown();
+        } else {
+          Swal.fire({
+            title: 'Failed',
+            text: data.message || 'Failed to resend OTP.',
+            icon: 'error',
+            confirmButtonText: 'OK'
+          });
+          resendBtn.disabled = false;
+        }
+      } catch (err) {
+        Swal.fire({
+          title: 'Error',
+          text: 'Network error. Please try again.',
+          icon: 'error',
+          confirmButtonText: 'OK'
+        });
+        resendBtn.disabled = false;
+      }
+    });
+    
+    startCooldown();
+
+    verifyOtpForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const otp = document.getElementById('otp').value.trim();
+        if(!otp) {
+            Swal.fire({
+              title: 'Missing OTP',
+              text: 'Please enter the OTP.',
+              icon: 'error',
+              confirmButtonText: 'OK'
+            });
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/auth/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp }),
+            });
+
+            const data = await res.json();
+
+            if(data.success) {
+                otpValue = otp;
+                verifyOtpForm.style.display = 'none';
+                resetPasswordForm.style.display = 'block';
+                await Swal.fire({
+                  title: 'OTP Verified',
+                  text: 'OTP verified. Please enter your new password.',
+                  icon: 'success',
+                  confirmButtonText: 'OK'
+                });
+            } else {
+                await Swal.fire({
+                  title: 'Verification Failed',
+                  text: data.message || 'Failed to verify OTP.',
+                  icon: 'error',
+                  confirmButtonText: 'OK'
+                });
+            }
+
+        } catch(error) {
+            await Swal.fire({
+              title: 'Error',
+              text: 'An unexpected error occurred.',
+              icon: 'error',
+              confirmButtonText: 'OK'
+            });
+        }
+    });
+
+    const requirements = {
+      length: pw => pw.length >= 8,
+      uppercase: pw => /[A-Z]/.test(pw),
+      lowercase: pw => /[a-z]/.test(pw),
+      number: pw => /[0-9]/.test(pw),
+      special: pw => /[!@#$%^&*(),.?":{}|<>]/.test(pw)
+    };
+
+    function updatePasswordRequirementColor() {
+      const pw = newPassword.value;
+      const isValid = Object.keys(requirements).every(req => requirements[req](pw));
+      newPassword.classList.remove('is-valid', 'is-invalid');
+      if (pw.length > 0) {
+        newPassword.classList.add(isValid ? 'is-valid' : 'is-invalid');
+      }
+      if (isValid) {
+        passwordReq.classList.add('valid');
+      } else {
+        passwordReq.classList.remove('valid');
+      }
+    }
+
+    function updateConfirmPasswordValidation() {
+      const pw = newPassword.value;
+      const confirmPw = confirmPassword.value;
+      const matchMsg = document.getElementById('passwordMatchMsg');
+      const isMatch = pw === confirmPw && confirmPw.length > 0;
+      confirmPassword.classList.remove('is-valid', 'is-invalid');
+      if (confirmPw.length > 0) {
+        confirmPassword.classList.add(isMatch ? 'is-valid' : 'is-invalid');
+      }
+      if (confirmPw.length === 0) {
+        matchMsg.textContent = '';
+        matchMsg.className = 'password-match-message';
+      } else if (isMatch) {
+        matchMsg.textContent = 'Passwords match.';
+        matchMsg.className = 'password-match-message match';
+      } else {
+        matchMsg.textContent = 'Passwords do not match.';
+        matchMsg.className = 'password-match-message nomatch';
+      }
+    }
+
+    const newPassword = document.getElementById('newPassword');
+    const confirmPassword = document.getElementById('confirmPassword');
+    if (newPassword) {
+      newPassword.addEventListener('input', () => {
+        updatePasswordRequirementColor();
+        if (confirmPassword.value) {
+          updateConfirmPasswordValidation();
+        }
+      });
+    }
+    if (confirmPassword) {
+      confirmPassword.addEventListener('input', updateConfirmPasswordValidation);
+    }
+
+    resetPasswordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const newPasswordVal = newPassword.value;
+        const confirmPasswordVal = confirmPassword.value;
+
+        const isPasswordValid = Object.keys(requirements).every(req => requirements[req](newPasswordVal));
+        if (!isPasswordValid) {
+          Swal.fire({
+            title: 'Invalid Password',
+            text: 'Password does not meet requirements.',
+            icon: 'error',
+            confirmButtonText: 'OK'
+          });
+          newPassword.classList.add('is-invalid');
+          return;
+        }
+
+        if (newPasswordVal !== confirmPasswordVal) {
+          Swal.fire({
+            title: 'Password Mismatch',
+            text: 'Passwords do not match.',
+            icon: 'error',
+            confirmButtonText: 'OK'
+          });
+          confirmPassword.classList.add('is-invalid');
+          return;
+        }
+
+        try {
+            const res = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp: otpValue, newPassword: newPasswordVal }),
+            });
+
+            const data = await res.json();
+            
+            if(data.success) {
+                Swal.fire({
+                    title: 'Success!',
+                    text: 'Your password has been reset successfully.',
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                }).then(() => {
+                    window.location.href = '/';
+                });
+            } else {
+                Swal.fire({
+                  title: 'Reset Failed',
+                  text: data.message || 'Failed to reset password.',
+                  icon: 'error',
+                  confirmButtonText: 'OK'
+                });
+            }
+
+        } catch(error) {
+            Swal.fire({
+              title: 'Error',
+              text: 'An unexpected error occurred.',
+              icon: 'error',
+              confirmButtonText: 'OK'
+            });
+        }
+    });
+
+  </script>
+</body>
+</html> 

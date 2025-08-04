@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>All Devices - PathPal Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" />
+      <link rel="stylesheet" href="/css/main.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <nav aria-label="breadcrumb" class="mt-4 ms-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="dashboard.html">Dashboard</a></li>
+      <li class="breadcrumb-item active" aria-current="page">All Devices</li>
+    </ol>
+  </nav>
+
+  <div class="device-management-container mt-4">
+    <div class="header-row">
+      <h4 class="mb-0">All Devices</h4>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Serial Number</th>
+            <th>Status</th>
+            <th>Date Added</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="devicesTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script>
+    fetch('/components/navbar.html')
+      .then(response => response.text())
+      .then(html => {
+        document.getElementById('navbar-container').innerHTML = html;
+      })
+      .catch(error => console.error('Error loading navbar:', error));
+
+    document.addEventListener('DOMContentLoaded', async function() {
+      async function fetchDevices() {
+        try {
+          const res = await fetch('/api/admin/devices', { credentials: 'include' });
+          const data = await res.json();
+
+          const tableBody = document.getElementById('devicesTableBody');
+          tableBody.innerHTML = '';
+
+          if (data.success && data.devices.length > 0) {
+            data.devices.forEach(device => {
+              const date = device.added_at || device.linked_at || device.created_at || '';
+              const status = device.linked_user_id ? 'Linked' : 'Unlinked';
+              const row = `
+                <tr>
+                  <td>${device.device_id}</td>
+                  <td>${device.serial_number}</td>
+                  <td>${status}</td>
+                  <td>${date ? new Date(date).toLocaleDateString() : ''}</td>
+                  <td>
+                    <button class="btn btn-sm btn-danger" onclick="deleteDevice(${device.device_id})">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              `;
+              tableBody.innerHTML += row;
+            });
+          } else {
+            tableBody.innerHTML = `
+              <tr>
+                <td colspan="4" class="text-center py-4">
+                  <div class="text-muted">
+                    <i class="fas fa-box-open mb-2" style="font-size: 2rem;"></i>
+                    <p class="mb-0">No devices found</p>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }
+        } catch (error) {
+          console.error('Error fetching devices:', error);
+          const tableBody = document.getElementById('devicesTableBody');
+          tableBody.innerHTML = `
+            <tr>
+              <td colspan="4" class="text-center text-danger">
+                Error loading devices. Please try again.
+              </td>
+            </tr>
+          `;
+        }
+      }
+
+      window.deleteDevice = async function(deviceId) {
+        const result = await Swal.fire({
+          title: 'Delete Device',
+          text: 'Are you sure you want to remove this device?',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, delete it',
+          cancelButtonText: 'Cancel',
+          customClass: {
+            popup: 'swal2-popup-small',
+            title: 'swal2-title-small',
+            content: 'swal2-content-small',
+            confirmButton: 'swal2-confirm-button-small',
+            cancelButton: 'swal2-cancel-button-small'
+          }
+        });
+
+        if (result.isConfirmed) {
+          try {
+            const response = await fetch(`/api/admin/devices/${deviceId}`, {
+              method: 'DELETE',
+              credentials: 'include'
+            });
+
+            if (response.ok) {
+              await Swal.fire({
+                title: 'Deleted!',
+                text: 'Device has been removed.',
+                icon: 'success',
+                confirmButtonColor: '#3085d6',
+                customClass: {
+                  popup: 'swal2-popup-small',
+                  title: 'swal2-title-small',
+                  content: 'swal2-content-small',
+                  confirmButton: 'swal2-confirm-button-small'
+                }
+              });
+              fetchDevices();
+            } else {
+              throw new Error('Failed to delete device');
+            }
+          } catch (error) {
+            console.error('Error deleting device:', error);
+            await Swal.fire({
+              title: 'Error!',
+              text: 'Failed to delete device. Please try again.',
+              icon: 'error',
+              confirmButtonColor: '#3085d6',
+              customClass: {
+                popup: 'swal2-popup-small',
+                title: 'swal2-title-small',
+                content: 'swal2-content-small',
+                confirmButton: 'swal2-confirm-button-small'
+              }
+            });
+          }
+        }
+      };
+
+      fetchDevices();
+    });
+  </script>
+</body>
+</html>

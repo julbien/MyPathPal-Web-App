@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
+    <link rel="stylesheet" href="/css/main.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #e0f0ff;
+            font-family: 'Poppins', sans-serif;
+        }
+        .card-graph {
+            height: 160px;
+        }
+    </style>
+</head>
+<body>
+    <div id="navbar-container"></div>
+
+    <div class="container py-4">
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+            <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
+                Add Device
+            </button>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6 col-lg-4">
+                <a href="/admin/all_devices.html" style="text-decoration: none; color: inherit;">
+                    <div class="card p-4 text-center">
+                        <h1 id="totalDevices" class="display-4">0</h1>
+                        <p class="text-muted">Total No. of Device</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card p-4 text-center">
+                    <h1 id="totalUsers" class="display-4">0</h1>
+                    <p class="text-muted">Total No. of User</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card p-4 text-center">
+                    <h1 id="totalLinkedDevices" class="display-4">0</h1>
+                    <p class="text-muted">Total No. of Linked Device</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card p-4 card-graph text-center">
+                    <canvas id="devicesPerMonthChart"></canvas>
+                    <p class="text-muted mt-2">Bar Graph (Shows no. of device each month)</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card p-4 card-graph text-center">
+                    <canvas id="userTypeChart"></canvas>
+                    <p class="text-muted mt-2">Pie Graph (Most user type)</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card p-4 card-graph text-center">
+                    <canvas id="emergencyPressesChart"></canvas>
+                    <p class="text-muted mt-2">Bar Graph (Shows how many times an emergency button is pressed each day)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Device Modal -->
+    <div class="modal fade" id="addDeviceModal" tabindex="-1" aria-labelledby="addDeviceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold" id="addDeviceModalLabel">Add Device</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addDeviceForm">
+                        <div class="mb-3">
+                            <label for="deviceSerial" class="form-label fw-semibold">Serial Number:</label>
+                            <input type="text" class="form-control" id="deviceSerial" name="deviceSerial" placeholder="Enter 5-digit number" maxlength="5" required>
+                            <div class="form-text">Enter 5-digit number (will be prefixed with PPSC-)</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-primary" id="saveDeviceBtn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Load navbar
+        fetch('/components/navbar.html')
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('navbar-container').innerHTML = html;
+            })
+            .catch(error => console.error('Error loading navbar:', error));
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Fetch admin data
+            async function fetchAdminData() {
+                try {
+                    const devicesRes = await fetch('/api/admin/devices', { credentials: 'include' });
+                    const devicesData = await devicesRes.json();
+                    if (devicesData.success) {
+                        const totalDevices = devicesData.devices.filter(device => device.type === 'admin').length;
+                        document.getElementById('totalDevices').textContent = totalDevices;
+                        
+                        const linkedDevices = devicesData.devices.filter(device => device.type === 'linked');
+                        document.getElementById('totalLinkedDevices').textContent = linkedDevices.length;
+                    }
+
+                    const usersRes = await fetch('/api/admin/users', { credentials: 'include' });
+                    const usersData = await usersRes.json();
+                    if (usersData.success) {
+                        const regularUsers = usersData.users.filter(user => user.user_type !== 'admin');
+                        document.getElementById('totalUsers').textContent = regularUsers.length;
+                    }
+                } catch (error) {
+                    console.error('Error fetching admin data:', error);
+                }
+            }
+
+            // Initialize charts
+            function initializeCharts() {
+                const devicesPerMonthCtx = document.getElementById('devicesPerMonthChart');
+                if (devicesPerMonthCtx) {
+                    new Chart(devicesPerMonthCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: 'New Devices',
+                                data: [],
+                                backgroundColor: '#007bff'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                }
+
+                const userTypeCtx = document.getElementById('userTypeChart');
+                if (userTypeCtx) {
+                    new Chart(userTypeCtx, {
+                        type: 'pie',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: 'User Distribution',
+                                data: [],
+                                backgroundColor: ['#28a745', '#007bff']
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                        }
+                    });
+                }
+
+                const emergencyPressesCtx = document.getElementById('emergencyPressesChart');
+                if (emergencyPressesCtx) {
+                    new Chart(emergencyPressesCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: 'Emergency Presses',
+                                data: [],
+                                backgroundColor: '#dc3545'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Add click handlers to chart containers
+            function addChartClickHandlers() {
+                const devicesCard = document.querySelector('#devicesPerMonthChart').closest('.card-graph');
+                const usersCard = document.querySelector('#userTypeChart').closest('.card-graph');
+                const emergencyCard = document.querySelector('#emergencyPressesChart').closest('.card-graph');
+
+                devicesCard.addEventListener('click', function() {
+                    window.location.href = '/admin/device-stats-details.html';
+                });
+
+                usersCard.addEventListener('click', function() {
+                    window.location.href = '/admin/user-stats-details.html';
+                });
+
+                emergencyCard.addEventListener('click', function() {
+                    window.location.href = '/admin/emergency-stats-details.html';
+                });
+            }
+
+            // Add device form handling
+            function setupAddDeviceForm() {
+                const addDeviceForm = document.getElementById('addDeviceForm');
+                const saveDeviceBtn = document.getElementById('saveDeviceBtn');
+                const deviceSerialInput = document.getElementById('deviceSerial');
+
+                // Serial number validation
+                deviceSerialInput.addEventListener('input', function(e) {
+                    const value = e.target.value;
+                    if (value && !value.match(/^\d{0,5}$/)) {
+                        deviceSerialInput.setCustomValidity('Please enter only digits');
+                    } else {
+                        deviceSerialInput.setCustomValidity('');
+                    }
+                });
+
+                deviceSerialInput.addEventListener('blur', function(e) {
+                    const value = e.target.value;
+                    if (value && !value.match(/^\d{5}$/)) {
+                        deviceSerialInput.setCustomValidity('Please enter exactly 5 digits');
+                    } else {
+                        deviceSerialInput.setCustomValidity('');
+                    }
+                });
+
+                // Save device button handler
+                saveDeviceBtn.addEventListener('click', async () => {
+                    if (!addDeviceForm.checkValidity()) {
+                        addDeviceForm.reportValidity();
+                        return;
+                    }
+
+                    const formData = new FormData(addDeviceForm);
+                    const deviceData = Object.fromEntries(formData.entries());
+                    
+                    // Validate serial number format
+                    const serialNumber = deviceData.deviceSerial;
+                    if (!serialNumber.match(/^\d{5}$/)) {
+                        Swal.fire({
+                            title: 'Invalid Serial Number',
+                            text: 'Please enter exactly 5 digits for the serial number.',
+                            icon: 'error',
+                            confirmButtonColor: '#3085d6'
+                        });
+                        return;
+                    }
+
+                    // Add PPSC- prefix to serial number
+                    const fullSerialNumber = 'PPSC-' + serialNumber;
+
+                    try {
+                        const confirmResult = await Swal.fire({
+                            title: 'Confirm Device Registration',
+                            text: 'Are you sure you want to register device ' + fullSerialNumber + '?',
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonColor: '#3085d6',
+                            cancelButtonColor: '#d33',
+                            confirmButtonText: 'Yes, register device',
+                            cancelButtonText: 'Cancel'
+                        });
+
+                        if (confirmResult.isConfirmed) {
+                            saveDeviceBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+                            saveDeviceBtn.disabled = true;
+
+                            const response = await fetch('/api/admin/add-device', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    serial_number: fullSerialNumber
+                                }),
+                                credentials: 'include'
+                            });
+
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || 'Failed to register device');
+                            }
+
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('addDeviceModal'));
+                            modal.hide();
+                            addDeviceForm.reset();
+
+                            Swal.fire({
+                                title: 'Success!',
+                                text: 'Device ' + fullSerialNumber + ' has been successfully registered.',
+                                icon: 'success',
+                                confirmButtonColor: '#3085d6'
+                            });
+
+                            fetchAdminData();
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        Swal.fire({
+                            title: 'Error!',
+                            text: error.message || 'Failed to register device. Please try again.',
+                            icon: 'error',
+                            confirmButtonColor: '#3085d6'
+                        });
+                    } finally {
+                        saveDeviceBtn.innerHTML = 'Save';
+                        saveDeviceBtn.disabled = false;
+                    }
+                });
+            }
+
+            // Initialize everything
+            fetchAdminData();
+            initializeCharts();
+            addChartClickHandlers();
+            setupAddDeviceForm();
+        });
+    </script>
+</body>
+</html>
+
+
+
