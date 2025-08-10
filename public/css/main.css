@@ -230,17 +230,26 @@ input.is-invalid {
     font-size: 14px;
 }
 
-/* Dashboard Styles */
-.battery-icon {
-    width: 36px;
-    height: 20px;
-    border: 3px solid #00c800;
-    border-radius: 4px;
-    position: relative;
+
+/* Icon Styles */
+.icon {
+    font-size: 1.2rem;
     display: inline-block;
-    margin-right: 8px;
-    vertical-align: middle;
 }
+
+/* Colors for each icon type */
+.battery {
+    color: green;
+  }
+  .movement {
+    color: blue;
+  }
+  .obstacle {
+    color: orange;
+  }
+  .anomaly {
+    color: red;
+  }
 
 /* Clickable Chart Styles */
 .card-graph {
@@ -257,24 +266,6 @@ input.is-invalid {
     cursor: pointer;
 }
 
-.battery-icon::after {
-    content: "";
-    position: absolute;
-    top: 5px;
-    right: -8px;
-    width: 6px;
-    height: 10px;
-    border: 3px solid #00c800;
-    border-radius: 2px;
-    border-left: none;
-}
-
-.battery-level {
-    background-color: #00c800;
-    height: 100%;
-    width: 0%;
-    border-radius: 1px;
-}
 
 .card-graph {
     min-height: 160px;
