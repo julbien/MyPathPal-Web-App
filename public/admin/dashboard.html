@@ -5,22 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
     
+    <!-- links -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
-    <link rel="stylesheet" href="/css/main.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            background-color: #e0f0ff;
-            font-family: 'Poppins', sans-serif;
-        }
-        .card-graph {
-            height: 160px;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/main.css" /> 
 </head>
 <body>
+    <!-- navbar -->
     <div id="navbar-container"></div>
 
     <div class="container py-4">
@@ -62,14 +54,14 @@
             </div>
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="card p-4 card-graph text-center">
-                    <canvas id="userTypeChart"></canvas>
-                    <p class="text-muted mt-2">Pie Graph (Most user type)</p>
+                    <canvas id="newUsersChart"></canvas>
+                    <p class="text-muted mt-2">Line Graph (New users over time)</p>
                 </div>
             </div>
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="card p-4 card-graph text-center">
-                    <canvas id="emergencyPressesChart"></canvas>
-                    <p class="text-muted mt-2">Bar Graph (Shows how many times an emergency button is pressed each day)</p>
+                    <canvas id="linkedDevicesChart"></canvas>
+                    <p class="text-muted mt-2">Bar Graph (Linked devices per month)</p>
                 </div>
             </div>
         </div>
@@ -103,6 +95,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
     <script src="/js/navbar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <script>
         // Load navbar
         fetch('/components/navbar.html')
@@ -163,44 +157,48 @@
                     });
                 }
 
-                const userTypeCtx = document.getElementById('userTypeChart');
-                if (userTypeCtx) {
-                    new Chart(userTypeCtx, {
-                        type: 'pie',
+                const newUsersCtx = document.getElementById('newUsersChart');
+                if (newUsersCtx) {
+                    new Chart(newUsersCtx, {
+                        type: 'line',
                         data: {
                             labels: [],
                             datasets: [{
-                                label: 'User Distribution',
+                                label: 'New Users',
                                 data: [],
-                                backgroundColor: ['#28a745', '#007bff']
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                        }
-                    });
-                }
-
-                const emergencyPressesCtx = document.getElementById('emergencyPressesChart');
-                if (emergencyPressesCtx) {
-                    new Chart(emergencyPressesCtx, {
-                        type: 'bar',
-                        data: {
-                            labels: [],
-                            datasets: [{
-                                label: 'Emergency Presses',
-                                data: [],
-                                backgroundColor: '#dc3545'
+                                borderColor: '#28a745',
+                                backgroundColor: 'rgba(40,167,69,0.1)',
+                                tension: 0.3,
+                                fill: true
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
                             scales: {
-                                y: {
-                                    beginAtZero: true
-                                }
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                }
+
+                const linkedDevicesCtx = document.getElementById('linkedDevicesChart');
+                if (linkedDevicesCtx) {
+                    new Chart(linkedDevicesCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: 'Linked Devices',
+                                data: [],
+                                backgroundColor: '#007bff'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { beginAtZero: true }
                             }
                         }
                     });
@@ -210,8 +208,8 @@
             // Add click handlers to chart containers
             function addChartClickHandlers() {
                 const devicesCard = document.querySelector('#devicesPerMonthChart').closest('.card-graph');
-                const usersCard = document.querySelector('#userTypeChart').closest('.card-graph');
-                const emergencyCard = document.querySelector('#emergencyPressesChart').closest('.card-graph');
+                const usersCard = document.querySelector('#newUsersChart').closest('.card-graph');
+                const linkedDevicesCard = document.querySelector('#linkedDevicesChart').closest('.card-graph');
 
                 devicesCard.addEventListener('click', function() {
                     window.location.href = '/admin/device-stats-details.html';
@@ -221,8 +219,8 @@
                     window.location.href = '/admin/user-stats-details.html';
                 });
 
-                emergencyCard.addEventListener('click', function() {
-                    window.location.href = '/admin/emergency-stats-details.html';
+                linkedDevicesCard.addEventListener('click', function() {
+                    window.location.href = '/admin/linked-device-stats-details.html';
                 });
             }
 

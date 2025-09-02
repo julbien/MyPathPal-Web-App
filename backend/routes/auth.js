@@ -80,15 +80,15 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
     try {
-        const { usernameOrEmail, password } = req.body;
+        const { email, password } = req.body;
 
-        if (!usernameOrEmail || !password) {
-            return res.status(400).json({ success: false, message: 'Username/Email and password are required' });
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: 'Email and password are required' });
         }
 
         const [users] = await db.query(
-            'SELECT * FROM users WHERE username = ? OR email = ?',
-            [usernameOrEmail, usernameOrEmail]
+            'SELECT * FROM users WHERE email = ?',
+            [email]
         );
 
         if (users.length === 0) {

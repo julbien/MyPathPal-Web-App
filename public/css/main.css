@@ -268,15 +268,57 @@ input.is-invalid {
 
 
 .card-graph {
-    min-height: 160px;
+    height: 200px;
 }
 
-.profile-circle {
-    width: 30px;
-    height: 30px;
-    background-color: #0066cc;
-    border-radius: 50%;
-    display: inline-block;
+/* Auth card width */
+.auth-card {
+    width: 100%;
+    max-width: 400px;
 }
 
-/* Map and pulsing marker styles removed */ 
+/* Unstyled link (inherit color, no underline) */
+.link-unstyled {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Icon size helpers */
+.icon-2rem {
+    font-size: 2rem;
+}
+
+/* Notifications dropdown sizing */
+.notifications-dropdown {
+    width: 300px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Small chevron icon */
+.chevron-small {
+    font-size: 0.8rem;
+}
+
+/* Map placeholder styling */
+.map-placeholder {
+    background-color: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 4px;
+    min-height: 100%;
+}
+
+/* Fixed width helper */
+.w-220px {
+    width: 220px;
+}
+
+/* Fine-grained font-size helper */
+.fs-095 {
+    font-size: 0.95rem;
+}
+
+/* Device selector width */
+.device-select {
+    width: 220px;
+}

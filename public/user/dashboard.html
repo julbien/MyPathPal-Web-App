@@ -4,10 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Dashboard</title>
-  <!-- Links -->
+  <!--links -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" />
   <link rel="stylesheet" href="/css/main.css" />
@@ -21,7 +19,7 @@
   <div class="container py-4">
     <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
       <!-- dropdown for delecting a device to monitor -->
-      <select class="form-select" style="width: 220px;" aria-label="Select device">
+      <select class="form-select device-select" aria-label="Select device">
         <option selected id="deviceName"></option>
       </select>
       <!-- manage device button to redirect to device management page -->
@@ -30,13 +28,13 @@
 
 
     <div class="row g-4">
-      <!-- Left Column -->
+      <!-- left column  -->
       <div class="col-lg-4 d-flex flex-column gap-3">
         <div class="card p-3">
           <h5>Battery Status</h5>
           <div class="d-flex align-items-center">
             <i class="fas fa-battery-full icon battery me-2"></i>
-            <p class="fw-bold mb-0">100%</p>
+            <p class="fw-bold mb-0" id="batteryPercent">--</p>
           </div>
         </div>
         
@@ -44,7 +42,7 @@
           <h5>Last Movement</h5>
           <div class="d-flex align-items-center">
             <i class="fas fa-walking icon movement me-2"></i>
-            <p class="mb-0">5 minutes ago</p>
+            <p class="mb-0" id="lastMovement">No data</p>
           </div>
         </div>
         
@@ -52,7 +50,7 @@
           <h5>Last Obstacle Detected</h5>
           <div class="d-flex align-items-center">
             <i class="fas fa-exclamation-triangle icon obstacle me-2"></i>
-            <p class="mb-0">10 minutes ago</p>
+            <p class="mb-0" id="lastObstacle">No data</p>
           </div>
         </div>
         
@@ -60,15 +58,15 @@
           <h5>Movement Anomalies</h5>
           <div class="d-flex align-items-center">
             <i class="fas fa-exclamation-circle icon anomaly me-2"></i>
-            <p class="mb-0">Sudden stop</p>
+            <p class="mb-0" id="movementAnomalies">No data</p>
           </div>
         </div>
       </div>
 
-      <!-- Right Column -->
+      <!-- right Column -->
       <div class="col-lg-8 d-flex">
         <div class="card w-100">
-          <div class="map-placeholder d-flex align-items-center justify-content-center" style="background-color: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 4px; min-height: 100%;">
+          <div class="map-placeholder d-flex align-items-center justify-content-center">
             <div class="text-center text-muted">
               <i class="fas fa-map-marked-alt fa-3x mb-3"></i>
               <h6>Map Placeholder</h6>
@@ -98,11 +96,12 @@
     </div>
   </div>
 
-
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
   <script src="/js/navbar.js"></script>
+
+  <!-- dashboard script -->
   <script>
     // load navbar
     fetch('/components/navbar.html')
