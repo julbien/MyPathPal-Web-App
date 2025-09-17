@@ -39,7 +39,7 @@
           <input class="form-check-input" type="checkbox" id="terms" required />
           <label class="form-check-label" for="terms">
             <small>
-            I agree to the <a href="#" class="text-primary">Terms and Privacy Policy.</a>
+            I agree to the <a href="#" id="termsLink" class="text-primary text-decoration-underline">Terms and Data Privacy Policy</a>.
             </small>
           </label>
         </div>
@@ -59,7 +59,130 @@
     </div>
   </div>
 
+  <!-- New User Info Modal -->
+  <div class="modal fade" id="newUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Important Reminders Before Signing Up</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <ul class="mb-0">
+            <li>Make sure your phone number is correct and active. This number will be used for emergency messages and cane status updates.</li>
+            <li>Password must be strong to keep your account secure</li>
+            <li>We will email you a 4-digit OTP to verify your email address.</li>
+            <li>Please read our Terms and Conditions and Data Privacy Policy before signing up.</li>
+          </ul>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terms and Data Privacy Modal -->
+  <div class="modal fade" id="termsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Terms and Data Privacy Policy</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <h6 class="mb-1">PathPal – Terms and Conditions</h6>
+          <p class="text-muted mb-3">Last Updated: 2025</p>
+          <p class="mb-3">Welcome to PathPal, an IoT-based smart cane and companion platform designed to assist elderly and visually impaired individuals. By accessing or using our web application, you agree to comply with and be bound by the following Terms and Conditions. Please read them carefully.</p>
+
+          <ol class="mb-4 ps-3">
+            <li class="mb-2"><strong>Acceptance of Terms</strong><br>By registering, accessing, or using PathPal, you agree to these Terms. If you do not agree, please do not use our services.</li>
+            <li class="mb-2"><strong>Use of Services</strong>
+              <ul class="mb-2">
+                <li>PathPal is intended for personal and assistive use only.</li>
+                <li>You agree not to misuse the system, attempt unauthorized access, or disrupt the platform.</li>
+                <li>You are responsible for maintaining the confidentiality of your account credentials.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>User Responsibilities</strong>
+              <ul class="mb-2">
+                <li>You agree to provide accurate and truthful information when registering.</li>
+                <li>You will not use PathPal for unlawful, harmful, or fraudulent activities.</li>
+                <li>You are responsible for ensuring that your IoT device (cane, wearable, SIM card, etc.) is used in compliance with applicable laws.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>Limitations of Liability</strong>
+              <ul class="mb-2">
+                <li>PathPal is designed as an assistive tool but cannot guarantee absolute safety or accident prevention.</li>
+                <li>We are not liable for damages arising from misuse, technical failures, connectivity issues, or third-party service interruptions.</li>
+                <li>The system should not replace medical advice, professional assistance, or personal supervision when required.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>Intellectual Property</strong><br>All logos, designs, content, and system features of PathPal belong to the project team and may not be copied, modified, or distributed without permission.</li>
+            <li class="mb-2"><strong>Termination</strong><br>We reserve the right to suspend or terminate access if you violate these Terms.</li>
+            <li class="mb-2"><strong>Changes to Terms</strong><br>We may update these Terms from time to time. Continued use of the platform means you accept any changes.</li>
+          </ol>
+
+          <h6 class="mb-1">🔒 PathPal – Data Privacy Policy</h6>
+          <p class="text-muted mb-3">Last Updated: 2025</p>
+          <p class="mb-2">We value your privacy and are committed to protecting your personal data. This Privacy Policy explains how PathPal collects, uses, and safeguards your information.</p>
+
+          <ol class="mb-4 ps-3">
+            <li class="mb-2"><strong>Information We Collect</strong>
+              <p class="mb-1">When you use PathPal, we may collect the following information:</p>
+              <ul>
+                <li><strong>Personal Information</strong>: Name, contact details, and account credentials (username, email).</li>
+                <li><strong>Device Information</strong>: Smart cane ID, GPS location data, vibration alerts, usage logs.</li>
+                <li><strong>Communication Data</strong>: Emergency alerts and notifications sent via the system.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>How We Use Your Information</strong>
+              <ul>
+                <li>Provide core functionalities (location tracking, alerts, notifications).</li>
+                <li>Improve system performance and user experience.</li>
+                <li>Ensure safety by sending emergency alerts to registered contacts.</li>
+                <li>Comply with legal or safety obligations if required.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>Data Sharing and Disclosure</strong>
+              <ul>
+                <li>We do not sell or rent your personal data.</li>
+                <li>Data may be shared with trusted service providers (e.g., SMS gateway, network providers) solely to deliver services.</li>
+                <li>We may disclose data if required by law or for safety reasons.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>Data Security</strong>
+              <ul>
+                <li>We use reasonable security measures to protect your information.</li>
+                <li>However, no system is 100% secure, and we cannot guarantee absolute protection against unauthorized access.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>Data Retention</strong>
+              <ul>
+                <li>We retain your personal and device data only as long as necessary for service delivery.</li>
+                <li>You may request account deletion, and your personal data will be securely removed.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>Your Rights</strong>
+              <ul>
+                <li>Access and review the data we hold about you.</li>
+                <li>Request corrections to inaccurate information.</li>
+                <li>Request deletion of your account and associated data.</li>
+              </ul>
+            </li>
+            <li class="mb-2"><strong>Changes to This Policy</strong><br>We may update this Privacy Policy periodically. Any changes will be posted on this page with the updated date.</li>
+            <li class="mb-2"><strong>Contact Us</strong><br>If you have questions or concerns regarding your privacy, please contact us at: <strong>📧 pathpal-sc@gmail.com</strong></li>
+          </ol>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 
   <script>
@@ -126,6 +249,24 @@
     terms.addEventListener('change', () => {
       terms.setCustomValidity(terms.checked ? "" : "You must agree to the terms and conditions.");
       terms.reportValidity();
+    });
+
+    // Show info modal once when the page loads; users can close (X) and proceed
+    document.addEventListener('DOMContentLoaded', () => {
+      const modalEl = document.getElementById('newUserModal');
+      if (modalEl && window.bootstrap && bootstrap.Modal) {
+        const infoModal = new bootstrap.Modal(modalEl, { backdrop: true, keyboard: true });
+        infoModal.show();
+      }
+      const termsLink = document.getElementById('termsLink');
+      const termsModalEl = document.getElementById('termsModal');
+      if (termsLink && termsModalEl && window.bootstrap && bootstrap.Modal) {
+        const termsModal = new bootstrap.Modal(termsModalEl, { backdrop: true, keyboard: true });
+        termsLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          termsModal.show();
+        });
+      }
     });
 
     form.addEventListener('submit', async e => {
@@ -217,57 +358,108 @@
       }
 
       try {
-        const res = await fetch('/api/auth/register', {
+        const initRes = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username,
-            email,
-            phone,
-            password: pw,
-            recaptchaResponse,
-          }),
+          body: JSON.stringify({ username, email, phone, password: pw, recaptchaResponse })
         });
+        const initData = await initRes.json();
 
-        const data = await res.json();
+        if (!initRes.ok || !initData.success) {
+          await Swal.fire({ title: 'Registration Failed', text: initData.message || 'Registration failed.', icon: 'error', confirmButtonText: 'OK' });
+          return;
+        }
 
-        if (data.success) {
-          await Swal.fire({
-            title: 'Success!',
-            text: 'Registration successful!',
-            icon: 'success',
-            timer: 1500,
-            showConfirmButton: false
+        let seconds = initData.resendSeconds || 60;
+
+        while (true) {
+          let intervalId;
+          const { value: otp, isConfirmed } = await Swal.fire({
+            title: 'Enter OTP',
+            input: 'text',
+            inputLabel: `We sent a 4-digit code to ${email}`,
+            inputPlaceholder: 'Enter 4-digit OTP',
+            inputAttributes: { maxlength: 4, autocapitalize: 'off', autocorrect: 'off' },
+            showCancelButton: true,
+            confirmButtonText: 'Verify',
+            cancelButtonText: seconds > 0 ? `Resend (${seconds}s)` : 'Resend',
+            allowOutsideClick: false,
+            didOpen: () => {
+              const cancelBtn = Swal.getCancelButton();
+              if (!cancelBtn) return;
+              clearInterval(intervalId);
+              intervalId = setInterval(() => {
+                if (seconds > 0) {
+                  seconds -= 1;
+                  cancelBtn.textContent = seconds > 0 ? `Resend (${seconds}s)` : 'Resend';
+                } else {
+                  clearInterval(intervalId);
+                }
+              }, 1000);
+            },
+            willClose: () => {
+              clearInterval(intervalId);
+            },
+            preConfirm: async (value) => {
+              if (!value) {
+                Swal.showValidationMessage('Please enter the OTP');
+                return false;
+              }
+              try {
+                const verifyRes = await fetch('/api/auth/register-complete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email, otp: value })
+                });
+                const verifyData = await verifyRes.json();
+                if (!verifyRes.ok || !verifyData.success) {
+                  Swal.showValidationMessage(verifyData.message || 'Invalid OTP');
+                  return false;
+                }
+                return true;
+              } catch (err) {
+                Swal.showValidationMessage('Failed to verify. Try again.');
+                return false;
+              }
+            }
           });
-          
-          await Swal.fire({
-            title: 'Redirecting...',
-            text: 'Please wait while we redirect you to login page',
-            icon: 'info',
-            timer: 2000,
-            showConfirmButton: false,
-            allowOutsideClick: false
-          });
-          
-          window.location.href = '/';
-        } else {
-          await Swal.fire({
-            title: 'Registration Failed',
-            text: data.message || 'Registration failed.',
-            icon: 'error',
-            confirmButtonText: 'OK'
-          });
+
+          if (isConfirmed) {
+            await Swal.fire({ title: 'Success!', text: 'Registration successful!', icon: 'success', timer: 1500, showConfirmButton: false });
+            await Swal.fire({ title: 'Redirecting...', text: 'Please wait while we redirect you to login page', icon: 'info', timer: 2000, showConfirmButton: false, allowOutsideClick: false });
+            window.location.href = '/';
+            break;
+          } else {
+            if (seconds > 0) {
+              // Still in cooldown, just show info and reopen
+              await Swal.fire({ title: 'Please wait', text: `You can resend OTP in ${seconds}s`, icon: 'info', timer: 1200, showConfirmButton: false });
+            } else {
+              try {
+                const resendRes = await fetch('/api/auth/register-resend', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email })
+                });
+                const resendData = await resendRes.json();
+                if (resendRes.ok && resendData.success) {
+                  seconds = resendData.resendSeconds || 60;
+                  await Swal.fire({ title: 'OTP Sent', text: 'A new OTP has been sent to your email.', icon: 'success', timer: 1200, showConfirmButton: false });
+                } else {
+                  seconds = resendData.secondsRemaining || 30;
+                  await Swal.fire({ title: 'Please wait', text: resendData.message || 'Try again later.', icon: 'info', timer: 1200, showConfirmButton: false });
+                }
+              } catch (err) {
+                await Swal.fire({ title: 'Error', text: 'Failed to resend OTP. Try again later.', icon: 'error', confirmButtonText: 'OK' });
+              }
+            }
+          }
+
+          // Real-time countdown handled within the modal; nothing to do here
         }
       } catch (error) {
         console.error('Registration error:', error);
-        await Swal.fire({
-          title: 'Error',
-          text: 'Something went wrong. Please try again.',
-          icon: 'error',
-          confirmButtonText: 'OK'
-        });
+        await Swal.fire({ title: 'Error', text: 'Something went wrong. Please try again.', icon: 'error', confirmButtonText: 'OK' });
       } finally {
-        // Reset reCAPTCHA after submission
         grecaptcha.reset();
       }
     });

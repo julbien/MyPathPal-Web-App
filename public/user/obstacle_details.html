@@ -24,9 +24,25 @@
     </ol>
   </nav>
 
-  <div class="device-management-container mt-4">
+  <div class="obstacle-details-container mt-4">
     <div class="header-row">
       <h4 class="mb-0">Obstacle Detection Details</h4>
+    </div>
+
+    <!-- Search and Filter Controls -->
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-search"></i></span>
+          <input type="text" class="form-control" id="obstacleSearchInput" placeholder="Search by date or time...">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <input type="date" class="form-control" id="obstacleDateFrom" placeholder="From Date">
+      </div>
+      <div class="col-md-3">
+        <input type="date" class="form-control" id="obstacleDateTo" placeholder="To Date">
+      </div>
     </div>
 
     <div class="table-responsive">
@@ -66,54 +82,94 @@
       .catch(error => console.error('Error loading navbar:', error));
 
     document.addEventListener('DOMContentLoaded', async function() {
+      let allObstacleData = [];
+      
       // Load obstacle data
       async function loadObstacleData() {
         try {
           const res = await fetch('/api/user/obstacle-data', { credentials: 'include' });
           const data = await res.json();
           
-          const tableBody = document.getElementById('obstacleTableBody');
-          tableBody.innerHTML = '';
-          
           if (data.success && data.obstacles && data.obstacles.length > 0) {
-            data.obstacles.forEach(obstacle => {
-              const row = `
-                <tr>
-                  <td>${obstacle.date || 'N/A'}</td>
-                  <td>${obstacle.time || 'N/A'}</td>
-                </tr>
-              `;
-              tableBody.innerHTML += row;
-            });
+            allObstacleData = data.obstacles;
+            displayObstacleData(allObstacleData);
           } else {
-            tableBody.innerHTML = `
-              <tr>
-                <td colspan="2" class="text-center py-4">
-                  <div class="text-muted">
-                    <i class="fas fa-exclamation-triangle mb-2" style="font-size: 2rem;"></i>
-                    <p class="mb-0">No obstacle data found</p>
-                    <small>Obstacle detection data will appear here</small>
-                  </div>
-                </td>
-              </tr>
-            `;
+            allObstacleData = [];
+            displayObstacleData([]);
           }
         } catch (error) {
           console.error('Error loading obstacle data:', error);
-          const tableBody = document.getElementById('obstacleTableBody');
+          allObstacleData = [];
+          displayObstacleData([]);
+        }
+      }
+
+      // Display obstacle data with filtering
+      function displayObstacleData(data) {
+        const tableBody = document.getElementById('obstacleTableBody');
+        tableBody.innerHTML = '';
+        
+        if (data.length > 0) {
+          data.forEach(obstacle => {
+            const row = `
+              <tr>
+                <td>${obstacle.date || 'N/A'}</td>
+                <td>${obstacle.time || 'N/A'}</td>
+              </tr>
+            `;
+            tableBody.innerHTML += row;
+          });
+        } else {
           tableBody.innerHTML = `
             <tr>
               <td colspan="2" class="text-center py-4">
                 <div class="text-muted">
-                  <i class="fas fa-exclamation-triangle mb-2 icon-2rem"></i>
-                  <p class="mb-0">Error loading data</p>
-                  <small>Please try again later</small>
+                  <i class="fas fa-exclamation-triangle mb-2" style="font-size: 2rem;"></i>
+                  <p class="mb-0">No obstacle data found</p>
+                  <small>Obstacle detection data will appear here</small>
                 </div>
               </td>
             </tr>
           `;
         }
       }
+
+      // Filter obstacle data
+      function filterObstacleData() {
+        const searchTerm = document.getElementById('obstacleSearchInput').value.toLowerCase();
+        const dateFrom = document.getElementById('obstacleDateFrom').value;
+        const dateTo = document.getElementById('obstacleDateTo').value;
+        
+        let filteredData = allObstacleData.filter(obstacle => {
+          // Text search
+          const matchesSearch = !searchTerm || 
+            (obstacle.date && obstacle.date.toLowerCase().includes(searchTerm)) ||
+            (obstacle.time && obstacle.time.toLowerCase().includes(searchTerm));
+          
+          // Date range filter
+          let matchesDateRange = true;
+          if (dateFrom || dateTo) {
+            const obstacleDate = new Date(obstacle.date);
+            if (dateFrom) {
+              const fromDate = new Date(dateFrom);
+              matchesDateRange = matchesDateRange && obstacleDate >= fromDate;
+            }
+            if (dateTo) {
+              const toDate = new Date(dateTo);
+              matchesDateRange = matchesDateRange && obstacleDate <= toDate;
+            }
+          }
+          
+          return matchesSearch && matchesDateRange;
+        });
+        
+        displayObstacleData(filteredData);
+      }
+
+      // Add event listeners for filtering
+      document.getElementById('obstacleSearchInput').addEventListener('input', filterObstacleData);
+      document.getElementById('obstacleDateFrom').addEventListener('change', filterObstacleData);
+      document.getElementById('obstacleDateTo').addEventListener('change', filterObstacleData);
 
       // Load initial data
       loadObstacleData();

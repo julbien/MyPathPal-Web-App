@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Linked Device Statistics Details</title>
+  <!-- Links -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+
+<body>
+  <!-- navbar -->
+  <div id="navbar-container"></div>
+
+  <!-- breadcrumb -->
+  <nav aria-label="breadcrumb" class="mt-4 ms-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="dashboard.html">Admin Dashboard</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Linked Device Statistics Details</li>
+    </ol>
+  </nav>
+
+  <!-- linked device statistics container -->
+  <div class="linked-device-stats-container mt-4">
+    <div class="header-row">
+      <h4 class="mb-0">Linked Devices Per Month</h4>
+    </div>
+
+    <!-- Search and Filter Controls -->
+    <div class="row mb-3">
+      <div class="col-md-4">
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-search"></i></span>
+          <input type="text" class="form-control" id="linkedDeviceSearchInput" placeholder="Search...">
+        </div>
+      </div>
+      <div class="col-md-2">
+        <input type="date" class="form-control" id="linkedDeviceDateFrom" placeholder="From Date">
+      </div>
+      <div class="col-md-2">
+        <input type="date" class="form-control" id="linkedDeviceDateTo" placeholder="To Date">
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Device ID</th>
+            <th>User ID</th>
+            <th>Linked At</th>
+          </tr>
+        </thead>
+        <tbody id="linkedDeviceStatsTableBody">
+          <!-- Data will be loaded here -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Empty state -->
+    <div id="linkedDeviceStatsEmptyState" class="text-center py-5" style="display: none;">
+      <i class="fas fa-link mb-2 table-empty-icon"></i>
+      <h5 class="text-muted">No linked devices found</h5>
+      <p class="text-muted">No devices have been linked to users yet.</p>
+    </div>
+
+    <!-- Error state -->
+    <div id="linkedDeviceStatsErrorState" class="text-center py-5" style="display: none;">
+      <i class="fas fa-exclamation-triangle mb-2 table-empty-icon"></i>
+      <h5 class="text-danger">Error loading linked devices</h5>
+      <p class="text-muted">Please try refreshing the page.</p>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+  <script src="/js/navbar.js"></script>
+
+  <script>
+    // Load navbar
+    fetch('/components/navbar.html')
+      .then(response => response.text())
+      .then(html => {
+        document.getElementById('navbar-container').innerHTML = html;
+      })
+      .catch(error => console.error('Error loading navbar:', error));
+
+    let allLinkedDevices = [];
+    let csrfToken = null;
+
+    // Fetch CSRF token
+    async function fetchCSRFToken() {
+      try {
+        const response = await fetch('/api/admin/csrf-token', { 
+          method: 'GET',
+          credentials: 'include' 
+        });
+        const data = await response.json();
+        if (data.success) {
+          csrfToken = data.token;
+        }
+      } catch (error) {
+        console.error('Error fetching CSRF token:', error);
+      }
+    }
+
+    // Load linked device data
+    async function loadLinkedDevices() {
+      try {
+        const response = await fetch('/api/admin/linked-devices', {
+          credentials: 'include'
+        });
+        const data = await response.json();
+
+        console.log('Linked devices data:', data); // Debug log
+
+        if (data.success) {
+          allLinkedDevices = data.linkedDevices;
+          console.log('Linked devices:', allLinkedDevices); // Debug log
+          displayLinkedDevices(allLinkedDevices);
+        } else {
+          console.error('API returned error:', data.message);
+          showErrorState();
+        }
+      } catch (error) {
+        console.error('Error loading linked devices:', error);
+        showErrorState();
+      }
+    }
+
+    // Display linked device data
+    function displayLinkedDevices(linkedDevices) {
+      const tbody = document.getElementById('linkedDeviceStatsTableBody');
+      const emptyState = document.getElementById('linkedDeviceStatsEmptyState');
+      const errorState = document.getElementById('linkedDeviceStatsErrorState');
+
+      // Hide all states first
+      tbody.style.display = 'table-row-group';
+      emptyState.style.display = 'none';
+      errorState.style.display = 'none';
+
+      if (linkedDevices.length === 0) {
+        tbody.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      tbody.innerHTML = linkedDevices.map(device => `
+        <tr>
+          <td>${device.linked_device_id}</td>
+          <td>${device.device_id}</td>
+          <td>${device.user_id}</td>
+          <td>${new Date(device.linked_at).toLocaleDateString()}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Filter linked devices
+    function filterLinkedDevices() {
+      const searchTerm = document.getElementById('linkedDeviceSearchInput').value.toLowerCase();
+      const dateFrom = document.getElementById('linkedDeviceDateFrom').value;
+      const dateTo = document.getElementById('linkedDeviceDateTo').value;
+
+      let filtered = allLinkedDevices.filter(device => {
+        const matchesSearch = !searchTerm || 
+          device.linked_device_id.toString().includes(searchTerm) ||
+          device.device_id.toString().includes(searchTerm) ||
+          device.user_id.toString().includes(searchTerm);
+
+        const deviceDate = new Date(device.linked_at);
+        const matchesDateFrom = !dateFrom || deviceDate >= new Date(dateFrom);
+        const matchesDateTo = !dateTo || deviceDate <= new Date(dateTo + 'T23:59:59');
+
+        return matchesSearch && matchesDateFrom && matchesDateTo;
+      });
+
+      displayLinkedDevices(filtered);
+    }
+
+    // Show error state
+    function showErrorState() {
+      document.getElementById('linkedDeviceStatsTableBody').style.display = 'none';
+      document.getElementById('linkedDeviceStatsEmptyState').style.display = 'none';
+      document.getElementById('linkedDeviceStatsErrorState').style.display = 'block';
+    }
+
+    // View linked device details
+    function viewLinkedDeviceDetails(linkedDeviceId) {
+      Swal.fire({
+        title: 'Linked Device Details',
+        text: 'Linked device details functionality will be implemented here.',
+        icon: 'info',
+        confirmButtonColor: '#3085d6'
+      });
+    }
+
+    // View device location
+    function viewDeviceLocation(linkedDeviceId) {
+      Swal.fire({
+        title: 'Device Location',
+        text: 'Device location functionality will be implemented here.',
+        icon: 'info',
+        confirmButtonColor: '#3085d6'
+      });
+    }
+
+    // Event listeners
+    document.getElementById('linkedDeviceSearchInput').addEventListener('input', filterLinkedDevices);
+    document.getElementById('linkedDeviceDateFrom').addEventListener('change', filterLinkedDevices);
+    document.getElementById('linkedDeviceDateTo').addEventListener('change', filterLinkedDevices);
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', async function() {
+      await fetchCSRFToken();
+      loadLinkedDevices();
+    });
+  </script>
+</body>
+</html>

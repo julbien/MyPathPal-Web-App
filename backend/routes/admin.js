@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { generateToken, tokens } = require('../middleware/csrf');
 
 const isAdmin = (req, res, next) => {
     if (req.session.user && req.session.user.user_type === 'admin') {
@@ -9,6 +10,28 @@ const isAdmin = (req, res, next) => {
         res.status(403).json({ success: false, message: 'Admin access required' });
     }
 };
+
+// Get CSRF token endpoint
+router.get('/csrf-token', isAdmin, (req, res) => {
+    try {
+        const token = generateToken();
+        const userId = req.session.user.user_id;
+        
+        // Store token with user ID and timestamp
+        tokens.set(token, {
+            userId: userId,
+            timestamp: Date.now()
+        });
+
+        res.json({
+            success: true,
+            token: token
+        });
+    } catch (error) {
+        console.error('Error generating CSRF token:', error);
+        res.status(500).json({ success: false, message: 'Failed to generate CSRF token' });
+    }
+});
 
 router.post('/add-device', isAdmin, async (req, res) => {
     try {
@@ -81,6 +104,7 @@ router.get('/devices', isAdmin, async (req, res) => {
                 ld.linked_at AS linked_at
             FROM devices d
             LEFT JOIN linked_devices ld ON d.serial_number = ld.serial_number
+            ORDER BY d.added_at DESC
         `);
         
         const devicesWithType = devices.map(device => ({
@@ -149,6 +173,58 @@ router.get('/devices/count', isAdmin, async (req, res) => {
     } catch (error) {
         console.error('Error fetching device count:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch device count' });
+    }
+});
+
+// Get linked devices only
+router.get('/linked-devices', isAdmin, async (req, res) => {
+    try {
+        const [linkedDevices] = await db.query(`
+            SELECT 
+                ld.linked_device_id,
+                d.device_id,
+                ld.user_id,
+                ld.linked_at
+            FROM linked_devices ld
+            JOIN devices d ON ld.serial_number = d.serial_number
+            ORDER BY ld.linked_at DESC
+        `);
+        
+        res.json({ success: true, linkedDevices });
+    } catch (error) {
+        console.error('Error fetching linked devices:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to fetch linked devices',
+            error: error.message 
+        });
+    }
+});
+
+router.delete('/devices/:deviceId', isAdmin, async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+
+        // First check if device exists
+        const [devices] = await db.execute(
+            'SELECT * FROM devices WHERE device_id = ?',
+            [deviceId]
+        );
+
+        if (devices.length === 0) {
+            return res.status(404).json({ success: false, message: 'Device not found' });
+        }
+
+        // Delete the device
+        await db.execute(
+            'DELETE FROM devices WHERE device_id = ?',
+            [deviceId]
+        );
+
+        res.json({ success: true, message: 'Device deleted successfully' });
+    } catch (error) {
+        console.error('Delete device error:', error);
+        res.status(500).json({ success: false, message: 'Failed to delete device' });
     }
 });
 

@@ -1,6 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+
+// Helper function to create notifications
+async function createNotification(userId, message, type = 'system') {
+    try {
+        await db.query(
+            'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
+            [userId, message, type]
+        );
+    } catch (error) {
+        console.error('Error creating notification:', error);
+    }
+}
+const { generateToken, tokens } = require('../middleware/csrf');
 
 const isAuthenticated = (req, res, next) => {
     if (req.session.user) {
@@ -9,6 +25,28 @@ const isAuthenticated = (req, res, next) => {
         res.status(401).json({ success: false, message: 'Authentication required' });
     }
 };
+
+// Get CSRF token endpoint for devices
+router.get('/csrf-token', isAuthenticated, (req, res) => {
+    try {
+        const token = generateToken();
+        const userId = req.session.user.user_id;
+        
+        // Store token with user ID and timestamp
+        tokens.set(token, {
+            userId: userId,
+            timestamp: Date.now()
+        });
+
+        res.json({
+            success: true,
+            token: token
+        });
+    } catch (error) {
+        console.error('Error generating CSRF token:', error);
+        res.status(500).json({ success: false, message: 'Failed to generate CSRF token' });
+    }
+});
 
 router.get('/check-link/:serialNumber', isAuthenticated, async (req, res) => {
     try {
@@ -58,7 +96,7 @@ router.get('/', isAuthenticated, async (req, res) => {
     try {
         const userId = req.session.user.user_id;
         const [devices] = await db.execute(
-            'SELECT * FROM linked_devices WHERE user_id = ?',
+            'SELECT linked_device_id AS device_id, serial_number, device_name, user_id, linked_at FROM linked_devices WHERE user_id = ?',
             [userId]
         );
         res.json({ success: true, devices });
@@ -106,6 +144,9 @@ router.post('/', isAuthenticated, async (req, res) => {
             [deviceSerial, deviceName, userId]
         );
 
+        // Create notification for device linking
+        await createNotification(userId, `Device "${deviceName}" (${deviceSerial}) has been successfully linked to your account.`, 'device_status');
+
         res.status(201).json({ success: true, message: 'Device linked successfully' });
     } catch (error) {
         console.error('Link device error:', error);
@@ -113,30 +154,133 @@ router.post('/', isAuthenticated, async (req, res) => {
     }
 });
 
-router.delete('/:deviceId', isAuthenticated, async (req, res) => {
+// Device unlink - Step 1: Send OTP to email (similar to registration)
+router.post('/unlink-request/:deviceId', isAuthenticated, async (req, res) => {
     try {
         const userId = req.session.user.user_id;
         const { deviceId } = req.params;
+        
+        console.log('Unlink request for device:', deviceId, 'by user:', userId); // Debug log
 
+        // Check if device exists and belongs to user
         const [devices] = await db.execute(
-            'SELECT * FROM linked_devices WHERE device_id = ? AND user_id = ?',
+            'SELECT ld.linked_device_id, ld.serial_number, ld.device_name, u.email FROM linked_devices ld JOIN users u ON ld.user_id = u.user_id WHERE ld.linked_device_id = ? AND ld.user_id = ?',
             [deviceId, userId]
         );
 
         if (devices.length === 0) {
+            console.log('Device not found for user:', userId, 'device:', deviceId); // Debug log
             return res.status(404).json({ success: false, message: 'Device not found' });
         }
 
-        await db.execute(
-            'DELETE FROM linked_devices WHERE device_id = ?',
-            [deviceId]
-        );
+        const device = devices[0];
+        const userEmail = device.email;
+        console.log('Found device:', device, 'User email:', userEmail); // Debug log
 
-        res.json({ success: true, message: 'Device deleted successfully' });
+        // Generate OTP (same as registration)
+        const otp = crypto.randomInt(1000, 10000).toString(); // 4-digit
+        const otpHash = await bcrypt.hash(otp, 10);
+        const otpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+        const resendCooldownMs = 60 * 1000; // 60s
+
+        // Store OTP in session (same as registration)
+        req.session.pendingUnlink = {
+            deviceId: deviceId,
+            deviceName: device.device_name,
+            serialNumber: device.serial_number,
+            userEmail: userEmail,
+            otpHash,
+            otpExpiresAt,
+            lastOtpSentAt: Date.now(),
+            resendCooldownMs
+        };
+
+        // Check if email configuration is available
+        if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            console.log('Email configuration missing, using development mode');
+            console.log('OTP for device unlink:', otp); // Log OTP in development
+        } else {
+            // Send email (same pattern as registration)
+            const transporter = nodemailer.createTransport({
+                host: process.env.EMAIL_HOST,
+                port: process.env.EMAIL_PORT,
+                secure: process.env.EMAIL_PORT == 465,
+                auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+            });
+
+            console.log('Sending email to:', userEmail, 'with OTP:', otp); // Debug log
+            
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: userEmail,
+                subject: 'Your PathPal Device Unlink OTP',
+                text: `Your 4-digit device unlink OTP is: ${otp}. It expires in 10 minutes.`,
+                html: `<p>Your 4-digit device unlink OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`
+            });
+
+            console.log('Email sent successfully'); // Debug log
+        }
+
+        res.json({ 
+            success: true, 
+            message: 'OTP sent to your email.', 
+            resendSeconds: Math.floor(resendCooldownMs / 1000),
+            deviceName: device.device_name
+        });
     } catch (error) {
-        console.error('Delete device error:', error);
-        res.status(500).json({ success: false, message: 'Failed to delete device' });
+        console.error('Device unlink request error:', error);
+        console.error('Error details:', error.message, error.stack); // More detailed error logging
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to send OTP.',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
+
+// Device unlink - Step 2: Verify OTP and unlink (similar to registration-complete)
+router.post('/unlink-verify', isAuthenticated, async (req, res) => {
+    try {
+        const { otp } = req.body;
+        const pending = req.session.pendingUnlink;
+
+        if (!pending) {
+            return res.status(400).json({ success: false, message: 'No pending unlink request for this device.' });
+        }
+
+        if (!otp) {
+            return res.status(400).json({ success: false, message: 'OTP is required.' });
+        }
+
+        if (Date.now() > pending.otpExpiresAt) {
+            return res.status(400).json({ success: false, message: 'OTP has expired. Please resend.' });
+        }
+
+        const match = await bcrypt.compare(otp, pending.otpHash);
+        if (!match) {
+            return res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' });
+        }
+
+        // Unlink the device
+        await db.execute(
+            'DELETE FROM linked_devices WHERE linked_device_id = ? AND user_id = ?',
+            [pending.deviceId, req.session.user.user_id]
+        );
+
+        // Create notification for device unlinking
+        await createNotification(req.session.user.user_id, `Device "${pending.deviceName}" has been successfully unlinked from your account.`, 'device_status');
+
+        delete req.session.pendingUnlink;
+        res.json({ 
+            success: true, 
+            message: `Device "${pending.deviceName}" has been successfully unlinked.`,
+            deviceName: pending.deviceName
+        });
+    } catch (error) {
+        console.error('Device unlink verify error:', error);
+        res.status(500).json({ success: false, message: 'Failed to unlink device.' });
+    }
+});
+
 
 module.exports = router;

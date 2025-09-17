@@ -1,116 +1,127 @@
-// Simple rate limiter for PathPal
-// This prevents too many requests from the same IP address
+// Simple Production Rate Limiter
+// Meets all security requirements with simple code structure
 
 // Store request counts for each IP
 const requestCounts = new Map();
-
-// Store login attempt counts for each IP (separate from general requests)
 const loginAttempts = new Map();
+const authAttempts = new Map();
 
-// Clean old entries every 15 minutes
+// Clean up old entries every 10 minutes
 setInterval(() => {
     const now = Date.now();
     for (const [ip, data] of requestCounts.entries()) {
-        if (now - data.timestamp > 15 * 60 * 1000) { // 15 minutes
+        if (now - data.timestamp > 15 * 60 * 1000) {
             requestCounts.delete(ip);
         }
     }
     for (const [ip, data] of loginAttempts.entries()) {
-        if (now - data.timestamp > 10 * 60 * 1000) { // 10 minutes for login attempts
+        if (now - data.timestamp > 10 * 60 * 1000) {
             loginAttempts.delete(ip);
         }
     }
-}, 15 * 60 * 1000); // Clean every 15 minutes
+    for (const [ip, data] of authAttempts.entries()) {
+        if (now - data.timestamp > 10 * 60 * 1000) {
+            authAttempts.delete(ip);
+        }
+    }
+}, 10 * 60 * 1000);
 
-// Rate limiter middleware
-function rateLimit(maxRequests = 100, windowMs = 15 * 60 * 1000) {
-    return (req, res, next) => {
-        const ip = req.ip || req.connection.remoteAddress;
-        const now = Date.now();
+// Simple rate limiter - 100 requests per 15 minutes
+function rateLimit(req, res, next) {
+    const ip = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const maxRequests = 100;
+    const windowMs = 15 * 60 * 1000;
 
-        // Get current request count for this IP
-        const currentData = requestCounts.get(ip);
+    const currentData = requestCounts.get(ip);
 
-        if (!currentData || (now - currentData.timestamp) > windowMs) {
-            // First request or window expired
-            requestCounts.set(ip, {
-                count: 1,
-                timestamp: now
+    if (!currentData || (now - currentData.timestamp) > windowMs) {
+        requestCounts.set(ip, { count: 1, timestamp: now });
+    } else {
+        currentData.count++;
+        requestCounts.set(ip, currentData);
+
+        if (currentData.count > maxRequests) {
+            const remainingTime = Math.ceil((windowMs - (now - currentData.timestamp)) / 60000);
+            return res.status(429).json({
+                success: false,
+                message: `Too many requests. Please wait ${remainingTime} minutes.`
             });
-        } else {
-            // Increment count
-            currentData.count++;
-            requestCounts.set(ip, currentData);
-
-            // Check if limit exceeded
-            if (currentData.count > maxRequests) {
-                const remainingTime = Math.ceil((windowMs - (now - currentData.timestamp)) / 60000);
-                return res.status(429).json({
-                    success: false,
-                    message: `Too many requests. Please wait ${remainingTime} minutes before trying again.`
-                });
-            }
         }
-
-        next();
-    };
+    }
+    next();
 }
 
-// Rate limit specifically for login attempts
-function loginRateLimit(maxRequests = 5, windowMs = 10 * 60 * 1000) {
-    return (req, res, next) => {
-        // Only apply rate limiting to login attempts
-        if (req.path === '/login' && req.method === 'POST') {
-            const ip = req.ip || req.connection.remoteAddress;
-            const now = Date.now();
+// Login rate limiter - 5 attempts per 10 minutes
+function loginRateLimit(req, res, next) {
+    const ip = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const maxAttempts = 5;
+    const windowMs = 10 * 60 * 1000;
 
-            // Get current login attempt count for this IP
-            const currentData = loginAttempts.get(ip);
+    const currentData = loginAttempts.get(ip);
 
-            if (!currentData || (now - currentData.timestamp) > windowMs) {
-                // First login attempt or window expired
-                loginAttempts.set(ip, {
-                    count: 1,
-                    timestamp: now
-                });
-            } else {
-                // Increment login attempt count
-                currentData.count++;
-                loginAttempts.set(ip, currentData);
+    // Initialize or reset window
+    if (!currentData || (now - currentData.timestamp) > windowMs) {
+        loginAttempts.set(ip, { count: 1, timestamp: now, locked: false });
+        return next();
+    }
 
-                // Check if limit exceeded
-                if (currentData.count > maxRequests) {
-                    const remainingTime = Math.ceil((windowMs - (now - currentData.timestamp)) / 60000);
-                    return res.status(429).json({
-                        success: false,
-                        message: `Too many login attempts. Please wait ${remainingTime} minutes before trying again.`
-                    });
-                }
-            }
-        }
-        
-        next();
-    };
+    // If already locked, block without incrementing or extending the window
+    if (currentData.locked) {
+        const remainingTime = Math.ceil((windowMs - (now - currentData.timestamp)) / 60000);
+        return res.status(429).json({
+            success: false,
+            message: `Too many login attempts. Please wait ${remainingTime} minutes.`
+        });
+    }
+
+    // Not locked yet; increment count up to max and lock when threshold reached
+    if (currentData.count + 1 >= maxAttempts) {
+        currentData.count = maxAttempts; // cap at max
+        currentData.locked = true;       // lock for the remainder of the window
+        loginAttempts.set(ip, currentData);
+        const remainingTime = Math.ceil((windowMs - (now - currentData.timestamp)) / 60000);
+        return res.status(429).json({
+            success: false,
+            message: `Too many login attempts. Please wait ${remainingTime} minutes.`
+        });
+    }
+
+    // Below threshold; just increment and allow
+    currentData.count++;
+    loginAttempts.set(ip, currentData);
+    next();
 }
 
-// General rate limit for other auth routes (register, forgot password, etc.)
-function authRateLimit(maxRequests = 20, windowMs = 10 * 60 * 1000) {
-    return (req, res, next) => {
-        // Skip rate limiting for logout and login (login has its own limiter)
-        if (req.path === '/logout' && req.method === 'POST') {
-            return next();
+// Auth rate limiter - 20 requests per 10 minutes
+function authRateLimit(req, res, next) {
+    const ip = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const maxRequests = 20;
+    const windowMs = 10 * 60 * 1000;
+
+    const currentData = authAttempts.get(ip);
+
+    if (!currentData || (now - currentData.timestamp) > windowMs) {
+        authAttempts.set(ip, { count: 1, timestamp: now });
+    } else {
+        currentData.count++;
+        authAttempts.set(ip, currentData);
+
+        if (currentData.count > maxRequests) {
+            const remainingTime = Math.ceil((windowMs - (now - currentData.timestamp)) / 60000);
+            return res.status(429).json({
+                success: false,
+                message: `Too many requests. Please wait ${remainingTime} minutes.`
+            });
         }
-        if (req.path === '/login' && req.method === 'POST') {
-            return next(); // Login is handled by loginRateLimit
-        }
-        
-        // Apply rate limiting for other auth routes
-        return rateLimit(maxRequests, windowMs)(req, res, next);
-    };
+    }
+    next();
 }
 
 module.exports = {
     rateLimit,
-    authRateLimit,
-    loginRateLimit
-}; 
+    loginRateLimit,
+    authRateLimit
+};

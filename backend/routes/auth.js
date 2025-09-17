@@ -6,6 +6,18 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const https = require('https');
 
+// Helper function to create notifications
+async function createNotification(userId, message, type = 'system') {
+    try {
+        await db.query(
+            'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
+            [userId, message, type]
+        );
+    } catch (error) {
+        console.error('Error creating notification:', error);
+    }
+}
+
 // Function to verify reCAPTCHA
 async function verifyRecaptcha(recaptchaResponse) {
     return new Promise((resolve, reject) => {
@@ -31,6 +43,7 @@ async function verifyRecaptcha(recaptchaResponse) {
     });
 }
 
+// Registration - Step 1: validate inputs, send OTP, store pending data in session
 router.post('/register', async (req, res) => {
     try {
         const { username, email, phone, password, recaptchaResponse } = req.body;
@@ -43,7 +56,6 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ success: false, message: 'reCAPTCHA verification is required' });
         }
 
-        // Verify reCAPTCHA
         const isRecaptchaValid = await verifyRecaptcha(recaptchaResponse);
         if (!isRecaptchaValid) {
             return res.status(400).json({ success: false, message: 'reCAPTCHA verification failed' });
@@ -64,17 +76,124 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Phone number already exists' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const passwordHash = await bcrypt.hash(password, 10);
 
-        await db.query(
-            'INSERT INTO users (username, email, phone_number, password_hash, user_type) VALUES (?, ?, ?, ?, ?)',
-            [username, email, phone, hashedPassword, 'user']
-        );
+        // Generate and send OTP (4-digit to match forgot password)
+        const otp = crypto.randomInt(1000, 10000).toString(); // 4-digit
+        const otpHash = await bcrypt.hash(otp, 10);
+        const otpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+        const resendCooldownMs = 60 * 1000; // 60s
 
-        res.status(201).json({ success: true, message: 'Registration successful' });
+        req.session.pendingRegistration = {
+            username,
+            email,
+            phone,
+            passwordHash,
+            otpHash,
+            otpExpiresAt,
+            lastOtpSentAt: Date.now(),
+            resendCooldownMs
+        };
+
+        const transporter = nodemailer.createTransport({
+            host: process.env.EMAIL_HOST,
+            port: process.env.EMAIL_PORT,
+            secure: process.env.EMAIL_PORT == 465,
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+        });
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: email,
+            subject: 'Your PathPal Registration OTP',
+            text: `Your 4-digit registration OTP is: ${otp}. It expires in 10 minutes.`,
+            html: `<p>Your 4-digit registration OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`
+        });
+
+        res.json({ success: true, message: 'OTP sent to your email.', resendSeconds: Math.floor(resendCooldownMs / 1000) });
     } catch (error) {
         console.error('Registration error:', error);
-        res.status(500).json({ success: false, message: 'Registration failed' });
+        res.status(500).json({ success: false, message: 'Failed to start registration.' });
+    }
+});
+
+// Registration - Resend OTP
+router.post('/register-resend', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const pending = req.session.pendingRegistration;
+        if (!pending || pending.email !== email) {
+            return res.status(400).json({ success: false, message: 'No pending registration for this email.' });
+        }
+        const now = Date.now();
+        const remaining = (pending.lastOtpSentAt + pending.resendCooldownMs) - now;
+        if (remaining > 0) {
+            return res.status(429).json({ success: false, message: 'Please wait before resending OTP.', secondsRemaining: Math.ceil(remaining / 1000) });
+        }
+
+        const otp = crypto.randomInt(1000, 10000).toString(); // 4-digit
+        pending.otpHash = await bcrypt.hash(otp, 10);
+        pending.otpExpiresAt = now + 10 * 60 * 1000;
+        pending.lastOtpSentAt = now;
+
+        const transporter = nodemailer.createTransport({
+            host: process.env.EMAIL_HOST,
+            port: process.env.EMAIL_PORT,
+            secure: process.env.EMAIL_PORT == 465,
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+        });
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: pending.email,
+            subject: 'Your PathPal Registration OTP',
+            text: `Your 4-digit registration OTP is: ${otp}. It expires in 10 minutes.`,
+            html: `<p>Your 4-digit registration OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`
+        });
+
+        res.json({ success: true, message: 'OTP resent.', resendSeconds: Math.floor(pending.resendCooldownMs / 1000) });
+    } catch (error) {
+        console.error('Resend registration OTP error:', error);
+        res.status(500).json({ success: false, message: 'Failed to resend OTP.' });
+    }
+});
+
+// Registration - Step 2: Verify OTP and create account
+router.post('/register-complete', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        const pending = req.session.pendingRegistration;
+
+        if (!pending || pending.email !== email) {
+            return res.status(400).json({ success: false, message: 'No pending registration for this email.' });
+        }
+
+        if (!otp) {
+            return res.status(400).json({ success: false, message: 'OTP is required.' });
+        }
+
+        if (Date.now() > pending.otpExpiresAt) {
+            return res.status(400).json({ success: false, message: 'OTP has expired. Please resend.' });
+        }
+
+        const match = await bcrypt.compare(otp, pending.otpHash);
+        if (!match) {
+            return res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' });
+        }
+
+        const [result] = await db.query(
+            'INSERT INTO users (username, email, phone_number, password_hash, user_type) VALUES (?, ?, ?, ?, ?)',
+            [pending.username, pending.email, pending.phone, pending.passwordHash, 'user']
+        );
+
+        // Create welcome notification for new user
+        await createNotification(result.insertId, 'Thank you for registering with MyPathPal! Welcome to our community.', 'system');
+
+        delete req.session.pendingRegistration;
+        res.json({ success: true, message: 'Registration successful.' });
+    } catch (error) {
+        console.error('Complete registration error:', error);
+        res.status(500).json({ success: false, message: 'Failed to complete registration.' });
     }
 });
 
@@ -238,6 +357,9 @@ router.post('/reset-password', async (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         await db.query('UPDATE users SET password_hash = ? WHERE email = ?', [hashedPassword, email]);
         await db.query('UPDATE password_resets SET used = TRUE WHERE reset_id = ?', [reset.reset_id]);
+
+        // Create notification for password reset
+        await createNotification(user.user_id, 'Your password has been successfully reset. If you did not make this change, please contact support immediately.', 'system');
 
         res.json({ success: true, message: 'Password has been reset successfully.' });
     } catch (error) {

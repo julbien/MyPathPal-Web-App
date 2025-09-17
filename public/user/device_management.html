@@ -94,6 +94,28 @@
 
   <!-- device management script -->
   <script>
+    // Global CSRF token
+    let csrfToken = null;
+
+    // Global function to fetch CSRF token
+    async function fetchCSRFToken() {
+        try {
+            const response = await fetch('/api/devices/csrf-token', { 
+                method: 'GET',
+                credentials: 'include' 
+            });
+            const data = await response.json();
+            if (data.success) {
+                csrfToken = data.token;
+                console.log('CSRF Token fetched successfully:', csrfToken);
+            } else {
+                console.error('Failed to fetch CSRF token:', data.message);
+            }
+        } catch (error) {
+            console.error('Error fetching CSRF token:', error);
+        }
+    }
+
     // Load navbar
     fetch('/components/navbar.html')
       .then(response => response.text())
@@ -102,70 +124,195 @@
       })
       .catch(error => console.error('Error loading navbar:', error));
 
-    // Move deleteDevice to global scope and place before DOMContentLoaded
-    async function deleteDevice(deviceId) {
-      const result = await Swal.fire({
-        title: 'Unlink Device',
-        text: 'Are you sure you want to unlink this device?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, unlink',
-        cancelButtonText: 'Cancel',
-        customClass: {
-          popup: 'swal2-popup-small',
-          title: 'swal2-title-small',
-          content: 'swal2-content-small',
-          confirmButton: 'swal2-confirm-button-small',
-          cancelButton: 'swal2-cancel-button-small'
-        }
-      });
-
-      if (result.isConfirmed) {
-        try {
-          const response = await fetch(`/api/devices/${deviceId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-          });
-
-          if (response.ok) {
-            await Swal.fire({
-              title: 'Unlinked!',
-              text: 'Device has been unlinked.',
-              icon: 'success',
-              confirmButtonColor: '#3085d6',
-              customClass: {
-                popup: 'swal2-popup-small',
-                title: 'swal2-title-small',
-                content: 'swal2-content-small',
-                confirmButton: 'swal2-confirm-button-small'
-              }
+    // Device unlink with OTP verification (similar to registration)
+        async function deleteDevice(deviceId) {
+            const result = await Swal.fire({
+                title: 'Unlink Device',
+                text: 'Are you sure you want to unlink this device? A verification code will be sent to your email.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, send verification code',
+                cancelButtonText: 'Cancel',
+                customClass: {
+                    popup: 'swal2-popup-small',
+                    title: 'swal2-title-small',
+                    content: 'swal2-content-small',
+                    confirmButton: 'swal2-confirm-button-small',
+                    cancelButton: 'swal2-cancel-button-small'
+                }
             });
-            // Reload devices after unlink
-            if (typeof loadDevices === 'function') loadDevices();
-          } else {
-            throw new Error('Failed to unlink device');
-          }
-        } catch (error) {
-          console.error('Error unlinking device:', error);
-          await Swal.fire({
-            title: 'Error!',
-            text: 'Failed to unlink device. Please try again.',
-            icon: 'error',
-            confirmButtonColor: '#3085d6',
-            customClass: {
-              popup: 'swal2-popup-small',
-              title: 'swal2-title-small',
-              content: 'swal2-content-small',
-              confirmButton: 'swal2-confirm-button-small'
-            }
-          });
-        }
-      }
-    }
 
-    document.addEventListener('DOMContentLoaded', function () {
+            if (result.isConfirmed) {
+                try {
+                    // Step 1: Request OTP (similar to registration)
+                    const response = await fetch(`/api/devices/unlink-request/${deviceId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': csrfToken
+                        },
+                        credentials: 'include'
+                    });
+
+                    const data = await response.json();
+                    console.log('OTP request response:', response.status, data); // Debug log
+
+                    if (response.ok) {
+                        // Step 2: Show OTP input dialog (similar to registration)
+                        const { value: otp } = await Swal.fire({
+                            title: 'Enter Verification Code',
+                            text: `A 4-digit verification code has been sent to your email for device "${data.deviceName}".`,
+                            input: 'text',
+                            inputPlaceholder: 'Enter 4-digit code',
+                            inputAttributes: {
+                                maxlength: 4,
+                                pattern: '[0-9]{4}',
+                                inputmode: 'numeric'
+                            },
+                            showCancelButton: true,
+                            confirmButtonText: 'Verify',
+                            cancelButtonText: 'Cancel',
+                            confirmButtonColor: '#d33',
+                            cancelButtonColor: '#3085d6',
+                            customClass: {
+                                popup: 'swal2-popup-small',
+                                title: 'swal2-title-small',
+                                content: 'swal2-content-small',
+                                confirmButton: 'swal2-confirm-button-small',
+                                cancelButton: 'swal2-cancel-button-small'
+                            },
+                            inputValidator: (value) => {
+                                if (!value || !value.match(/^\d{4}$/)) {
+                                    return 'Please enter a valid 4-digit code';
+                                }
+                            }
+                        });
+
+                        if (otp) {
+                            // Allow up to 3 attempts for OTP verification
+                            let attempts = 0;
+                            const maxAttempts = 3;
+                            let currentOtp = otp;
+                            
+                            while (attempts < maxAttempts) {
+                                // Refresh CSRF token before verification
+                                await fetchCSRFToken();
+                                
+                                // Step 3: Verify OTP and unlink
+                                const verifyResponse = await fetch('/api/devices/unlink-verify', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-Token': csrfToken
+                                    },
+                                    credentials: 'include',
+                                    body: JSON.stringify({ otp: currentOtp })
+                                });
+
+                                const verifyData = await verifyResponse.json();
+
+                                if (verifyResponse.ok) {
+                                    await Swal.fire({
+                                        title: 'Device Unlinked!',
+                                        text: verifyData.message,
+                                        icon: 'success',
+                                        confirmButtonColor: '#3085d6',
+                                        customClass: {
+                                            popup: 'swal2-popup-small',
+                                            title: 'swal2-title-small',
+                                            content: 'swal2-content-small',
+                                            confirmButton: 'swal2-confirm-button-small'
+                                        }
+                                    });
+                                    // Reload devices after unlink
+                                    if (typeof loadDevices === 'function') loadDevices();
+                                    break; // Success, exit the loop
+                                } else {
+                                    attempts++;
+                                    const remainingAttempts = maxAttempts - attempts;
+                                    
+                                    if (attempts >= maxAttempts) {
+                                        // Max attempts reached, show error and close
+                                        await Swal.fire({
+                                            title: 'Verification Failed',
+                                            text: `Maximum attempts reached. ${verifyData.message || 'Please try again later.'}`,
+                                            icon: 'error',
+                                            confirmButtonColor: '#d33',
+                                            customClass: {
+                                                popup: 'swal2-popup-small',
+                                                title: 'swal2-title-small',
+                                                content: 'swal2-content-small',
+                                                confirmButton: 'swal2-confirm-button-small'
+                                            }
+                                        });
+                                        break;
+                                    } else {
+                                        // Show error and ask for new OTP
+                                        const { value: newOtp } = await Swal.fire({
+                                            title: 'Invalid Code',
+                                            text: `${verifyData.message || 'Invalid verification code.'} You have ${remainingAttempts} attempt(s) remaining.`,
+                                            input: 'text',
+                                            inputPlaceholder: 'Enter 4-digit code',
+                                            inputAttributes: {
+                                                maxlength: 4,
+                                                pattern: '[0-9]{4}',
+                                                inputmode: 'numeric'
+                                            },
+                                            showCancelButton: true,
+                                            confirmButtonText: 'Verify',
+                                            cancelButtonText: 'Cancel',
+                                            confirmButtonColor: '#d33',
+                                            cancelButtonColor: '#3085d6',
+                                            customClass: {
+                                                popup: 'swal2-popup-small',
+                                                title: 'swal2-title-small',
+                                                content: 'swal2-content-small',
+                                                confirmButton: 'swal2-confirm-button-small',
+                                                cancelButton: 'swal2-cancel-button-small'
+                                            },
+                                            inputValidator: (value) => {
+                                                if (!value || !value.match(/^\d{4}$/)) {
+                                                    return 'Please enter a valid 4-digit code';
+                                                }
+                                            }
+                                        });
+                                        
+                                        if (!newOtp) {
+                                            // User cancelled, exit the loop
+                                            break;
+                                        }
+                                        currentOtp = newOtp;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        throw new Error(data.message || 'Failed to send verification code');
+                    }
+                } catch (error) {
+                    console.error('Error unlinking device:', error);
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message || 'Failed to unlink device',
+                        icon: 'error',
+                        confirmButtonColor: '#3085d6',
+                        customClass: {
+                            popup: 'swal2-popup-small',
+                            title: 'swal2-title-small',
+                            content: 'swal2-content-small',
+                            confirmButton: 'swal2-confirm-button-small'
+                        }
+                    });
+                }
+            }
+        }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      // Fetch CSRF token first
+      await fetchCSRFToken();
+      
       // Add Device Form Handling
       const addDeviceForm = document.getElementById('addDeviceForm');
       const saveDeviceBtn = document.getElementById('saveDeviceBtn');
@@ -237,7 +384,8 @@
             const response = await fetch('/api/devices', {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
               },
               body: JSON.stringify(deviceData),
               credentials: 'include'
@@ -308,7 +456,7 @@
                 <tr>
                   <td colspan="5" class="text-center py-4">
                     <div class="text-muted">
-                      <i class="fas fa-box-open mb-2" style="font-size: 2rem;"></i>
+                      <i class="fas fa-box-open mb-2 table-empty-icon"></i>
                       <p class="mb-0">No devices found</p>
                       <small>Click "Link Device" to register a new device</small>
                     </div>

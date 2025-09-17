@@ -24,9 +24,25 @@
     </ol>
   </nav>
 
-  <div class="device-management-container mt-4">
+  <div class="usage-details-container mt-4">
     <div class="header-row">
       <h4 class="mb-0">Usage Details</h4>
+    </div>
+
+    <!-- Search and Filter Controls -->
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-search"></i></span>
+          <input type="text" class="form-control" id="usageSearchInput" placeholder="Search by date, duration, or battery...">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <input type="date" class="form-control" id="usageDateFrom" placeholder="From Date">
+      </div>
+      <div class="col-md-3">
+        <input type="date" class="form-control" id="usageDateTo" placeholder="To Date">
+      </div>
     </div>
 
     <div class="table-responsive">
@@ -35,13 +51,12 @@
           <tr>
             <th>Date</th>
             <th>Duration (mins)</th>
-            <th>Distance (km)</th>
             <th>Battery Used (%)</th>
           </tr>
         </thead>
         <tbody id="usageTableBody">
           <tr>
-            <td colspan="4" class="text-center py-4">
+            <td colspan="3" class="text-center py-4">
               <div class="text-muted">
                 <i class="fas fa-clock mb-2 icon-2rem"></i>
                 <p class="mb-0">No usage data found</p>
@@ -68,56 +83,96 @@
       .catch(error => console.error('Error loading navbar:', error));
 
     document.addEventListener('DOMContentLoaded', async function() {
+      let allUsageData = [];
+      
       // Load usage data
       async function loadUsageData() {
         try {
           const res = await fetch('/api/user/usage-data', { credentials: 'include' });
           const data = await res.json();
           
-          const tableBody = document.getElementById('usageTableBody');
-          tableBody.innerHTML = '';
-          
           if (data.success && data.usage && data.usage.length > 0) {
-            data.usage.forEach(session => {
-              const row = `
-                <tr>
-                  <td>${session.date || 'N/A'}</td>
-                  <td>${session.duration || '0'}</td>
-                  <td>${session.distance || '0'}</td>
-                  <td>${session.battery_used || '0'}</td>
-                </tr>
-              `;
-              tableBody.innerHTML += row;
-            });
+            allUsageData = data.usage;
+            displayUsageData(allUsageData);
           } else {
-            tableBody.innerHTML = `
-              <tr>
-                <td colspan="4" class="text-center py-4">
-                  <div class="text-muted">
-                    <i class="fas fa-clock mb-2" style="font-size: 2rem;"></i>
-                    <p class="mb-0">No usage data found</p>
-                    <small>Usage data will appear here</small>
-                  </div>
-                </td>
-              </tr>
-            `;
+            allUsageData = [];
+            displayUsageData([]);
           }
         } catch (error) {
           console.error('Error loading usage data:', error);
-          const tableBody = document.getElementById('usageTableBody');
+          allUsageData = [];
+          displayUsageData([]);
+        }
+      }
+
+      // Display usage data with filtering
+      function displayUsageData(data) {
+        const tableBody = document.getElementById('usageTableBody');
+        tableBody.innerHTML = '';
+        
+        if (data.length > 0) {
+          data.forEach(session => {
+            const row = `
+              <tr>
+                <td>${session.date || 'N/A'}</td>
+                <td>${session.duration || '0'}</td>
+                <td>${session.battery_used || '0'}</td>
+              </tr>
+            `;
+            tableBody.innerHTML += row;
+          });
+        } else {
           tableBody.innerHTML = `
             <tr>
-              <td colspan="4" class="text-center py-4">
+              <td colspan="3" class="text-center py-4">
                 <div class="text-muted">
-                  <i class="fas fa-clock mb-2 icon-2rem"></i>
-                  <p class="mb-0">Error loading data</p>
-                  <small>Please try again later</small>
+                  <i class="fas fa-clock mb-2" style="font-size: 2rem;"></i>
+                  <p class="mb-0">No usage data found</p>
+                  <small>Usage data will appear here</small>
                 </div>
               </td>
             </tr>
           `;
         }
       }
+
+      // Filter usage data
+      function filterUsageData() {
+        const searchTerm = document.getElementById('usageSearchInput').value.toLowerCase();
+        const dateFrom = document.getElementById('usageDateFrom').value;
+        const dateTo = document.getElementById('usageDateTo').value;
+        
+        let filteredData = allUsageData.filter(session => {
+          // Text search
+          const matchesSearch = !searchTerm || 
+            (session.date && session.date.toLowerCase().includes(searchTerm)) ||
+            (session.duration && session.duration.toString().includes(searchTerm)) ||
+            (session.battery_used && session.battery_used.toString().includes(searchTerm));
+          
+          // Date range filter
+          let matchesDateRange = true;
+          if (dateFrom || dateTo) {
+            const sessionDate = new Date(session.date);
+            if (dateFrom) {
+              const fromDate = new Date(dateFrom);
+              matchesDateRange = matchesDateRange && sessionDate >= fromDate;
+            }
+            if (dateTo) {
+              const toDate = new Date(dateTo);
+              matchesDateRange = matchesDateRange && sessionDate <= toDate;
+            }
+          }
+          
+          return matchesSearch && matchesDateRange;
+        });
+        
+        displayUsageData(filteredData);
+      }
+
+      // Add event listeners for filtering
+      document.getElementById('usageSearchInput').addEventListener('input', filterUsageData);
+      document.getElementById('usageDateFrom').addEventListener('change', filterUsageData);
+      document.getElementById('usageDateTo').addEventListener('change', filterUsageData);
 
       // Load initial data
       loadUsageData();

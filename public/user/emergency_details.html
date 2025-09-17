@@ -24,9 +24,25 @@
   </nav>
 
   <!-- emergency details container -->
-  <div class="device-management-container mt-4">
+  <div class="emergency-details-container mt-4">
     <div class="header-row">
       <h4 class="mb-0">Emergency Button Press Details</h4>
+    </div>
+
+    <!-- Search and Filter Controls -->
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-search"></i></span>
+          <input type="text" class="form-control" id="emergencySearchInput" placeholder="Search by date, time, or location...">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <input type="date" class="form-control" id="emergencyDateFrom" placeholder="From Date">
+      </div>
+      <div class="col-md-3">
+        <input type="date" class="form-control" id="emergencyDateTo" placeholder="To Date">
+      </div>
     </div>
 
     <div class="table-responsive">
@@ -66,55 +82,96 @@
       .catch(error => console.error('Error loading navbar:', error));
 
     document.addEventListener('DOMContentLoaded', async function() {
+      let allEmergencyData = [];
+      
       // Load emergency data
       async function loadEmergencyData() {
         try {
           const res = await fetch('/api/user/emergency-data', { credentials: 'include' });
           const data = await res.json();
           
-          const tableBody = document.getElementById('emergencyTableBody');
-          tableBody.innerHTML = '';
-          
           if (data.success && data.emergencies && data.emergencies.length > 0) {
-            data.emergencies.forEach(emergency => {
-              const row = `
-                <tr>
-                  <td>${emergency.date || 'N/A'}</td>
-                  <td>${emergency.time || 'N/A'}</td>
-                  <td>${emergency.location || 'N/A'}</td>
-                </tr>
-              `;
-              tableBody.innerHTML += row;
-            });
+            allEmergencyData = data.emergencies;
+            displayEmergencyData(allEmergencyData);
           } else {
-            tableBody.innerHTML = `
-              <tr>
-                <td colspan="3" class="text-center py-4">
-                  <div class="text-muted">
-                    <i class="fas fa-exclamation-circle mb-2" style="font-size: 2rem;"></i>
-                    <p class="mb-0">No emergency data found</p>
-                    <small>Emergency button press data will appear here</small>
-                  </div>
-                </td>
-              </tr>
-            `;
+            allEmergencyData = [];
+            displayEmergencyData([]);
           }
         } catch (error) {
           console.error('Error loading emergency data:', error);
-          const tableBody = document.getElementById('emergencyTableBody');
+          allEmergencyData = [];
+          displayEmergencyData([]);
+        }
+      }
+
+      // Display emergency data with filtering
+      function displayEmergencyData(data) {
+        const tableBody = document.getElementById('emergencyTableBody');
+        tableBody.innerHTML = '';
+        
+        if (data.length > 0) {
+          data.forEach(emergency => {
+            const row = `
+              <tr>
+                <td>${emergency.date || 'N/A'}</td>
+                <td>${emergency.time || 'N/A'}</td>
+                <td>${emergency.location || 'N/A'}</td>
+              </tr>
+            `;
+            tableBody.innerHTML += row;
+          });
+        } else {
           tableBody.innerHTML = `
             <tr>
               <td colspan="3" class="text-center py-4">
                 <div class="text-muted">
-                  <i class="fas fa-exclamation-circle mb-2 icon-2rem"></i>
-                  <p class="mb-0">Error loading data</p>
-                  <small>Please try again later</small>
+                  <i class="fas fa-exclamation-circle mb-2" style="font-size: 2rem;"></i>
+                  <p class="mb-0">No emergency data found</p>
+                  <small>Emergency button press data will appear here</small>
                 </div>
               </td>
             </tr>
           `;
         }
       }
+
+      // Filter emergency data
+      function filterEmergencyData() {
+        const searchTerm = document.getElementById('emergencySearchInput').value.toLowerCase();
+        const dateFrom = document.getElementById('emergencyDateFrom').value;
+        const dateTo = document.getElementById('emergencyDateTo').value;
+        
+        let filteredData = allEmergencyData.filter(emergency => {
+          // Text search
+          const matchesSearch = !searchTerm || 
+            (emergency.date && emergency.date.toLowerCase().includes(searchTerm)) ||
+            (emergency.time && emergency.time.toLowerCase().includes(searchTerm)) ||
+            (emergency.location && emergency.location.toLowerCase().includes(searchTerm));
+          
+          // Date range filter
+          let matchesDateRange = true;
+          if (dateFrom || dateTo) {
+            const emergencyDate = new Date(emergency.date);
+            if (dateFrom) {
+              const fromDate = new Date(dateFrom);
+              matchesDateRange = matchesDateRange && emergencyDate >= fromDate;
+            }
+            if (dateTo) {
+              const toDate = new Date(dateTo);
+              matchesDateRange = matchesDateRange && emergencyDate <= toDate;
+            }
+          }
+          
+          return matchesSearch && matchesDateRange;
+        });
+        
+        displayEmergencyData(filteredData);
+      }
+
+      // Add event listeners for filtering
+      document.getElementById('emergencySearchInput').addEventListener('input', filterEmergencyData);
+      document.getElementById('emergencyDateFrom').addEventListener('change', filterEmergencyData);
+      document.getElementById('emergencyDateTo').addEventListener('change', filterEmergencyData);
 
       // Load initial data
       loadEmergencyData();

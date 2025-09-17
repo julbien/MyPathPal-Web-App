@@ -1,7 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+
+// Helper function to create notifications
+async function createNotification(userId, message, type = 'system') {
+    try {
+        await db.query(
+            'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
+            [userId, message, type]
+        );
+    } catch (error) {
+        console.error('Error creating notification:', error);
+    }
+}
 const bcrypt = require('bcrypt');
+const { generateToken, tokens } = require('../middleware/csrf');
 
 const isAuthenticated = (req, res, next) => {
     if (req.session.user) {
@@ -10,6 +23,28 @@ const isAuthenticated = (req, res, next) => {
         res.status(401).json({ success: false, message: 'Authentication required' });
     }
 };
+
+// Get CSRF token endpoint for users
+router.get('/csrf-token', isAuthenticated, (req, res) => {
+    try {
+        const token = generateToken();
+        const userId = req.session.user.user_id;
+        
+        // Store token with user ID and timestamp
+        tokens.set(token, {
+            userId: userId,
+            timestamp: Date.now()
+        });
+
+        res.json({
+            success: true,
+            token: token
+        });
+    } catch (error) {
+        console.error('Error generating CSRF token:', error);
+        res.status(500).json({ success: false, message: 'Failed to generate CSRF token' });
+    }
+});
 
 router.get('/profile', isAuthenticated, async (req, res) => {
     try {
@@ -118,6 +153,9 @@ router.put('/profile', isAuthenticated, async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
+        // Create notification for profile update
+        await createNotification(userId, 'Your profile has been successfully updated.', 'system');
+
         res.json({ success: true, message: 'Profile updated successfully' });
     } catch (error) {
         console.error('Update profile error:', error);
@@ -164,6 +202,10 @@ router.post('/change-password', isAuthenticated, async (req, res) => {
         }
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         await db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashedPassword, userId]);
+        
+        // Create notification for password change
+        await createNotification(userId, 'Your password has been successfully changed. If you did not make this change, please contact support immediately.', 'system');
+        
         res.json({ success: true, message: 'Password changed successfully' });
     } catch (error) {
         console.error('Error changing password:', error);
@@ -173,14 +215,54 @@ router.post('/change-password', isAuthenticated, async (req, res) => {
 
 router.get('/notifications', isAuthenticated, async (req, res) => {
     try {
+        const limit = req.query.limit ? parseInt(req.query.limit) : 10;
         const [notifications] = await db.query(
-            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
-            [req.session.user.user_id]
+            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
+            [req.session.user.user_id, limit]
         );
         res.json({ success: true, notifications });
     } catch (error) {
         console.error('Error fetching user notifications:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch notifications' });
+    }
+});
+
+// Mark single notification as read
+router.put('/notifications/:notificationId/read', isAuthenticated, async (req, res) => {
+    try {
+        const { notificationId } = req.params;
+        const userId = req.session.user.user_id;
+        
+        const [result] = await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE notification_id = ? AND user_id = ?',
+            [notificationId, userId]
+        );
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Notification not found' });
+        }
+        
+        res.json({ success: true, message: 'Notification marked as read' });
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+        res.status(500).json({ success: false, message: 'Failed to mark notification as read' });
+    }
+});
+
+// Mark all notifications as read
+router.put('/notifications/mark-all-read', isAuthenticated, async (req, res) => {
+    try {
+        const userId = req.session.user.user_id;
+        
+        await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE',
+            [userId]
+        );
+        
+        res.json({ success: true, message: 'All notifications marked as read' });
+    } catch (error) {
+        console.error('Error marking all notifications as read:', error);
+        res.status(500).json({ success: false, message: 'Failed to mark all notifications as read' });
     }
 });
 

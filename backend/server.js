@@ -47,13 +47,13 @@ app.use((req, res, next) => {
 // Input sanitization (clean user input)
 app.use(sanitizeInput);
 
-// Rate limiting
-app.use('/api/auth', loginRateLimit(5, 10 * 60 * 1000)); // 5 login attempts per 10 minutes
-app.use('/api/auth', authRateLimit(20, 10 * 60 * 1000)); // 20 requests per 10 minutes for other auth routes
-app.use('/api/', rateLimit(100, 15 * 60 * 1000)); // 100 requests per 15 minutes for general API
+// Rate limiting - Different limits for different routes
+app.use('/api/auth', loginRateLimit);    // 5 login attempts per 10 minutes (prevents brute force)
+app.use('/api/auth', authRateLimit);     // 20 auth requests per 10 minutes (prevents spam)
+app.use('/api/', rateLimit);             // 100 requests per 15 minutes (prevents DDoS)
 
-// CSRF protection
-app.use(createToken);
+// CSRF protection - only for API routes
+app.use('/api', createToken);
 
 // Authentication middleware
 const isAuthenticated = (req, res, next) => {
@@ -101,9 +101,29 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // API routes with CSRF protection
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/admin', validateToken, require('./routes/admin'));
-app.use('/api/user', validateToken, require('./routes/user'));
-app.use('/api/devices', validateToken, require('./routes/devices'));
+
+// Admin routes - CSRF token endpoint excluded from CSRF validation
+app.use('/api/admin', (req, res, next) => {
+    if (req.path === '/csrf-token') {
+        return next(); // Skip CSRF validation for token endpoint
+    }
+    return validateToken(req, res, next);
+}, require('./routes/admin'));
+
+// User routes - CSRF token endpoint excluded from CSRF validation
+app.use('/api/user', (req, res, next) => {
+    if (req.path === '/csrf-token') {
+        return next(); // Skip CSRF validation for token endpoint
+    }
+    return validateToken(req, res, next);
+}, require('./routes/user'));
+// Devices routes - CSRF token endpoint excluded from CSRF validation
+app.use('/api/devices', (req, res, next) => {
+    if (req.path === '/csrf-token') {
+        return next(); // Skip CSRF validation for token endpoint
+    }
+    return validateToken(req, res, next);
+}, require('./routes/devices'));
 
 // Page routes
 app.get('/auth/register', (req, res) => {

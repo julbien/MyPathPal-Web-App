@@ -13,6 +13,7 @@ function generateToken() {
 
 // Create CSRF token middleware
 function createToken(req, res, next) {
+    // Only create token if session exists and user is authenticated
     if (req.session && req.session.user) {
         const token = generateToken();
         const userId = req.session.user.user_id;
@@ -36,6 +37,11 @@ function validateToken(req, res, next) {
         return next();
     }
 
+    // Skip validation if session is not available
+    if (!req.session) {
+        return next();
+    }
+
     const token = req.headers['x-csrf-token'] || req.body._csrf;
     
     if (!token) {
@@ -54,8 +60,8 @@ function validateToken(req, res, next) {
         });
     }
 
-    // Check if token is expired (1 hour)
-    if (Date.now() - tokenData.timestamp > 60 * 60 * 1000) {
+    // Check if token is expired (5 minutes)
+    if (Date.now() - tokenData.timestamp > 5 * 60 * 1000) {
         tokens.delete(token);
         return res.status(403).json({
             success: false,
@@ -71,22 +77,24 @@ function validateToken(req, res, next) {
         });
     }
 
-    // Remove used token
-    tokens.delete(token);
+    // Don't remove token immediately - allow multiple uses within 5 minutes
+    // This is needed for multi-step processes like OTP verification
     next();
 }
 
-// Clean expired tokens every hour
+// Clean expired tokens every 5 minutes
 setInterval(() => {
     const now = Date.now();
     for (const [token, data] of tokens.entries()) {
-        if (now - data.timestamp > 60 * 60 * 1000) { // 1 hour
+        if (now - data.timestamp > 5 * 60 * 1000) { // 5 minutes
             tokens.delete(token);
         }
     }
-}, 60 * 60 * 1000); // Clean every hour
+}, 5 * 60 * 1000); // Clean every 5 minutes
 
 module.exports = {
     createToken,
-    validateToken
+    validateToken,
+    generateToken,
+    tokens
 }; 
