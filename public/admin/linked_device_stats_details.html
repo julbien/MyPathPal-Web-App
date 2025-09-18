@@ -52,27 +52,21 @@
             <th>ID</th>
             <th>Device ID</th>
             <th>User ID</th>
-            <th>Linked At</th>
+            <th>Date</th>
+            <th>Time</th>
           </tr>
         </thead>
         <tbody id="linkedDeviceStatsTableBody">
-          <!-- Data will be loaded here -->
+          <tr>
+            <td colspan="5" class="text-center py-4">
+              <div class="text-muted">
+                <i class="fas fa-spinner fa-spin mb-2 table-empty-icon"></i>
+                <p class="mb-0">Loading linked devices...</p>
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
-    </div>
-
-    <!-- Empty state -->
-    <div id="linkedDeviceStatsEmptyState" class="text-center py-5" style="display: none;">
-      <i class="fas fa-link mb-2 table-empty-icon"></i>
-      <h5 class="text-muted">No linked devices found</h5>
-      <p class="text-muted">No devices have been linked to users yet.</p>
-    </div>
-
-    <!-- Error state -->
-    <div id="linkedDeviceStatsErrorState" class="text-center py-5" style="display: none;">
-      <i class="fas fa-exclamation-triangle mb-2 table-empty-icon"></i>
-      <h5 class="text-danger">Error loading linked devices</h5>
-      <p class="text-muted">Please try refreshing the page.</p>
     </div>
   </div>
 
@@ -137,28 +131,36 @@
     // Display linked device data
     function displayLinkedDevices(linkedDevices) {
       const tbody = document.getElementById('linkedDeviceStatsTableBody');
-      const emptyState = document.getElementById('linkedDeviceStatsEmptyState');
-      const errorState = document.getElementById('linkedDeviceStatsErrorState');
 
-      // Hide all states first
-      tbody.style.display = 'table-row-group';
-      emptyState.style.display = 'none';
-      errorState.style.display = 'none';
-
-      if (linkedDevices.length === 0) {
-        tbody.style.display = 'none';
-        emptyState.style.display = 'block';
+      if (!Array.isArray(linkedDevices) || linkedDevices.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center py-4">
+              <div class="text-muted">
+                <i class="fas fa-link mb-2 table-empty-icon"></i>
+                <p class="mb-0">No linked devices found</p>
+                <small>No devices have been linked to users yet.</small>
+              </div>
+            </td>
+          </tr>
+        `;
         return;
       }
 
-      tbody.innerHTML = linkedDevices.map(device => `
-        <tr>
-          <td>${device.linked_device_id}</td>
-          <td>${device.device_id}</td>
-          <td>${device.user_id}</td>
-          <td>${new Date(device.linked_at).toLocaleDateString()}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = linkedDevices.map(device => {
+        const dt = new Date(device.linked_at);
+        const dateStr = dt.toLocaleDateString();
+        const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `
+          <tr>
+            <td>${device.linked_device_id}</td>
+            <td>${device.device_id}</td>
+            <td>${device.user_id}</td>
+            <td>${dateStr}</td>
+            <td>${timeStr}</td>
+          </tr>
+        `;
+      }).join('');
     }
 
     // Filter linked devices
@@ -185,9 +187,18 @@
 
     // Show error state
     function showErrorState() {
-      document.getElementById('linkedDeviceStatsTableBody').style.display = 'none';
-      document.getElementById('linkedDeviceStatsEmptyState').style.display = 'none';
-      document.getElementById('linkedDeviceStatsErrorState').style.display = 'block';
+      const tbody = document.getElementById('linkedDeviceStatsTableBody');
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" class="text-center py-4">
+            <div class="text-danger">
+              <i class="fas fa-exclamation-triangle mb-2 table-empty-icon"></i>
+              <p class="mb-0">Error loading linked devices</p>
+              <small>Please try refreshing the page.</small>
+            </div>
+          </td>
+        </tr>
+      `;
     }
 
     // View linked device details

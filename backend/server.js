@@ -9,7 +9,7 @@ require('dotenv').config();
 // Import security middleware
 const { handleError, handleNotFound } = require('./middleware/errorHandler');
 const { sanitizeInput } = require('./middleware/sanitizer');
-const { rateLimit, authRateLimit, loginRateLimit } = require('./middleware/rateLimiter');
+const { rateLimit, loginRateLimit } = require('./middleware/rateLimiter');
 const { createToken, validateToken } = require('./middleware/csrf');
 
 const app = express();
@@ -49,8 +49,12 @@ app.use(sanitizeInput);
 
 // Rate limiting - Different limits for different routes
 app.use('/api/auth', loginRateLimit);    // 5 login attempts per 10 minutes (prevents brute force)
-app.use('/api/auth', authRateLimit);     // 20 auth requests per 10 minutes (prevents spam)
-app.use('/api/', rateLimit);             // 100 requests per 15 minutes (prevents DDoS)
+// Remove overlapping authRateLimit to keep login attempts separate from general request limits
+// app.use('/api/auth', authRateLimit);
+// Apply general rate limit only to non-auth APIs to avoid blocking login flows
+app.use('/api/user', rateLimit);
+app.use('/api/admin', rateLimit);
+app.use('/api/devices', rateLimit);
 
 // CSRF protection - only for API routes
 app.use('/api', createToken);
@@ -98,6 +102,9 @@ const isAdmin = (req, res, next) => {
 
 // Serve static files
 app.use(express.static(path.join(__dirname, '../public')));
+
+// Support route
+app.use('/api/support', require('./routes/support'));
 
 // API routes with CSRF protection
 app.use('/api/auth', require('./routes/auth'));
