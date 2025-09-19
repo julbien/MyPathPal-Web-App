@@ -2,6 +2,18 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// Notify all admins helper (no new files)
+async function notifyAdmins(message, type = 'admin') {
+    try {
+        await db.query(
+            "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, ? FROM users WHERE user_type = 'admin'",
+            [message, type]
+        );
+    } catch (error) {
+        console.error('Error notifying admins:', error);
+    }
+}
+
 // Helper function to create notifications
 async function createNotification(userId, message, type = 'system') {
     try {
@@ -153,7 +165,7 @@ router.put('/profile', isAuthenticated, async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        // Create notification for profile update
+        // Create notification for profile update (user only)
         await createNotification(userId, 'Your profile has been successfully updated.', 'system');
 
         res.json({ success: true, message: 'Profile updated successfully' });
@@ -203,8 +215,12 @@ router.post('/change-password', isAuthenticated, async (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         await db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashedPassword, userId]);
         
-        // Create notification for password change
+        // Create notification for password change (user only)
         await createNotification(userId, 'Your password has been successfully changed. If you did not make this change, please contact support immediately.', 'system');
+        // Notify admins only if the actor is an admin changing their own password
+        if (req.session.user && req.session.user.user_type === 'admin') {
+            await notifyAdmins(`Admin ${userId} changed password.`, 'admin');
+        }
         
         res.json({ success: true, message: 'Password changed successfully' });
     } catch (error) {

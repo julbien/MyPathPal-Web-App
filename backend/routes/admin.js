@@ -3,6 +3,18 @@ const router = express.Router();
 const db = require('../db');
 const { generateToken, tokens } = require('../middleware/csrf');
 
+// Helper to notify all admins (no new files)
+async function notifyAdmins(message, type = 'admin') {
+    try {
+        await db.query(
+            "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, ? FROM users WHERE user_type = 'admin'",
+            [message, type]
+        );
+    } catch (error) {
+        console.error('Error notifying admins:', error);
+    }
+}
+
 const isAdmin = (req, res, next) => {
     if (req.session.user && req.session.user.user_type === 'admin') {
         next();
@@ -64,6 +76,8 @@ router.post('/add-device', isAdmin, async (req, res) => {
             [serial_number]
         );
 
+        await notifyAdmins(`Device added by admin ${req.session.user.user_id}: ${serial_number}`, 'admin');
+
         res.status(201).json({
             success: true,
             message: 'Device added successfully'
@@ -124,10 +138,49 @@ router.get('/devices', isAdmin, async (req, res) => {
 
 router.get('/notifications', isAdmin, async (req, res) => {
     try {
-        res.json({ success: true, notifications: [] });
+        const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+        const [notifications] = await db.query(
+            "SELECT notification_id, user_id, message, type, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+            [req.session.user.user_id, limit]
+        );
+        res.json({ success: true, notifications });
     } catch (error) {
         console.error('Error fetching notifications:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch notifications' });
+    }
+});
+
+// Mark admin notification as read
+router.put('/notifications/:notificationId/read', isAdmin, async (req, res) => {
+    try {
+        const { notificationId } = req.params;
+        const adminId = req.session.user.user_id;
+        const [result] = await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE notification_id = ? AND user_id = ?',
+            [notificationId, adminId]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Notification not found' });
+        }
+        res.json({ success: true, message: 'Notification marked as read' });
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+        res.status(500).json({ success: false, message: 'Failed to mark notification as read' });
+    }
+});
+
+// Mark all admin notifications as read
+router.put('/notifications/mark-all-read', isAdmin, async (req, res) => {
+    try {
+        const adminId = req.session.user.user_id;
+        await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE',
+            [adminId]
+        );
+        res.json({ success: true, message: 'All notifications marked as read' });
+    } catch (error) {
+        console.error('Error marking all notifications as read:', error);
+        res.status(500).json({ success: false, message: 'Failed to mark notifications as read' });
     }
 });
 
@@ -149,6 +202,7 @@ router.put('/devices/:deviceId', isAdmin, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Device not found' });
         }
 
+        await notifyAdmins(`Device ${deviceId} status updated to ${status} by admin ${req.session.user.user_id}`, 'admin');
         res.json({ success: true, message: 'Device status updated' });
     } catch (error) {
         console.error('Update device error:', error);
@@ -221,6 +275,7 @@ router.delete('/devices/:deviceId', isAdmin, async (req, res) => {
             [deviceId]
         );
 
+        await notifyAdmins(`Device ${deviceId} deleted by admin ${req.session.user.user_id}`, 'admin');
         res.json({ success: true, message: 'Device deleted successfully' });
     } catch (error) {
         console.error('Delete device error:', error);

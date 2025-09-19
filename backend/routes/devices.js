@@ -5,6 +5,18 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
+// Notify all admins helper (no new files)
+async function notifyAdmins(message, type = 'admin') {
+    try {
+        await db.query(
+            "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, ? FROM users WHERE user_type = 'admin'",
+            [message, type]
+        );
+    } catch (error) {
+        console.error('Error notifying admins:', error);
+    }
+}
+
 // Helper function to create notifications
 async function createNotification(userId, message, type = 'system') {
     try {
@@ -144,7 +156,7 @@ router.post('/', isAuthenticated, async (req, res) => {
             [deviceSerial, deviceName, userId]
         );
 
-        // Create notification for device linking
+        // Create notification for device linking (user only)
         await createNotification(userId, `Device "${deviceName}" (${deviceSerial}) has been successfully linked to your account.`, 'device_status');
 
         res.status(201).json({ success: true, message: 'Device linked successfully' });
@@ -267,7 +279,7 @@ router.post('/unlink-verify', isAuthenticated, async (req, res) => {
             [pending.deviceId, req.session.user.user_id]
         );
 
-        // Create notification for device unlinking
+        // Create notification for device unlinking (user only)
         await createNotification(req.session.user.user_id, `Device "${pending.deviceName}" has been successfully unlinked from your account.`, 'device_status');
 
         delete req.session.pendingUnlink;

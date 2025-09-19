@@ -9,7 +9,7 @@ require('dotenv').config();
 // Import security middleware
 const { handleError, handleNotFound } = require('./middleware/errorHandler');
 const { sanitizeInput } = require('./middleware/sanitizer');
-const { rateLimit, loginRateLimit } = require('./middleware/rateLimiter');
+const { rateLimit } = require('./middleware/rateLimiter');
 const { createToken, validateToken } = require('./middleware/csrf');
 
 const app = express();
@@ -47,11 +47,7 @@ app.use((req, res, next) => {
 // Input sanitization (clean user input)
 app.use(sanitizeInput);
 
-// Rate limiting - Different limits for different routes
-app.use('/api/auth', loginRateLimit);    // 5 login attempts per 10 minutes (prevents brute force)
-// Remove overlapping authRateLimit to keep login attempts separate from general request limits
-// app.use('/api/auth', authRateLimit);
-// Apply general rate limit only to non-auth APIs to avoid blocking login flows
+// Rate limiting - Apply general limits only to non-auth APIs
 app.use('/api/user', rateLimit);
 app.use('/api/admin', rateLimit);
 app.use('/api/devices', rateLimit);
@@ -159,6 +155,37 @@ app.use(handleError);
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    // Weekly digest: devices added and users registered in the past 7 days
+    try {
+        setInterval(async () => {
+            const now = new Date();
+            const day = now.getDay(); // 1 = Monday
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            if (day === 1 && hours === 8 && minutes === 0) {
+                try {
+                    const [deviceCountRows] = await db.query(
+                        'SELECT COUNT(*) AS cnt FROM devices WHERE added_at >= DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)'
+                    );
+                    const [userCountRows] = await db.query(
+                        'SELECT COUNT(*) AS cnt FROM users WHERE created_at >= DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)'
+                    );
+                    const devicesCount = deviceCountRows[0]?.cnt || 0;
+                    const usersCount = userCountRows[0]?.cnt || 0;
+                    const message = `Weekly digest: ${devicesCount} devices added this week, ${usersCount} users registered this week.`;
+                    // Inline notify admins without new file
+                    await db.query(
+                        "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, 'admin' FROM users WHERE user_type = 'admin'",
+                        [message]
+                    );
+                } catch (e) {
+                    console.error('Weekly digest failed:', e);
+                }
+            }
+        }, 60 * 1000); // check every minute
+    } catch (e) {
+        console.error('Failed to schedule weekly digest:', e);
+    }
 }).on('error', (err) => {
     console.error('Server failed to start:', err);
     process.exit(1);

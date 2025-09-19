@@ -25,7 +25,9 @@ function getNotificationIcon(type) {
 
 async function markNotificationAsRead(notificationId) {
     try {
-        const response = await fetch(`/api/user/notifications/${notificationId}/read`, {
+        const isAdmin = window.location.pathname.startsWith('/admin') || window.location.pathname.includes('/components/notifications-admin.html');
+        const endpoint = isAdmin ? `/api/admin/notifications/${notificationId}/read` : `/api/user/notifications/${notificationId}/read`;
+        const response = await fetch(endpoint, {
             method: 'PUT',
             credentials: 'include'
         });
@@ -62,7 +64,9 @@ async function markNotificationAsRead(notificationId) {
 
 async function markAllNotificationsAsRead() {
     try {
-        const response = await fetch('/api/user/notifications/mark-all-read', {
+        const isAdmin = window.location.pathname.startsWith('/admin') || window.location.pathname.includes('/components/notifications-admin.html');
+        const endpoint = isAdmin ? '/api/admin/notifications/mark-all-read' : '/api/user/notifications/mark-all-read';
+        const response = await fetch(endpoint, {
             method: 'PUT',
             credentials: 'include'
         });
@@ -90,10 +94,8 @@ async function markAllNotificationsAsRead() {
 
 async function loadNotifications() {
     try {
-        let notificationsUrl = '/api/user/notifications';
-        if (window.location.pathname.startsWith('/admin')) {
-            notificationsUrl = '/api/admin/notifications';
-        }
+        const isAdmin = window.location.pathname.startsWith('/admin') || window.location.pathname.includes('/components/notifications-admin.html');
+        let notificationsUrl = isAdmin ? '/api/admin/notifications' : '/api/user/notifications';
         const notificationResponse = await fetch(notificationsUrl, { credentials: 'include' });
         if (notificationResponse.ok) {
             const notificationData = await notificationResponse.json();
@@ -362,6 +364,16 @@ document.addEventListener('DOMContentLoaded', async function() {
             input.addEventListener('blur', saveHandler);
         });
     });
+
+    // Set View All Notifications link based on context
+    const viewAllLink = document.getElementById('viewAllNotificationsLink');
+    if (viewAllLink) {
+        if (window.location.pathname.startsWith('/admin')) {
+            viewAllLink.setAttribute('href', '/components/notifications-admin.html');
+        } else {
+            viewAllLink.setAttribute('href', '/components/notifications-user.html');
+        }
+    }
 
     // Load notifications
     await loadNotifications();
