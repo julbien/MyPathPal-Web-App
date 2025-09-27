@@ -8,7 +8,7 @@ const https = require('https');
 const { loginRateLimit } = require('../middleware/rateLimiter');
 
 // Notify all admins helper (no new files)
-async function notifyAdmins(message, type = 'admin') {
+async function notifyAdmins(message, type = 'system') {
     try {
         await db.query(
             "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, ? FROM users WHERE user_type = 'admin'",
@@ -201,7 +201,7 @@ router.post('/register-complete', async (req, res) => {
 
         // Create welcome notification for new user
         await createNotification(result.insertId, 'Thank you for registering with MyPathPal! Welcome to our community.', 'system');
-        await notifyAdmins(`New user registered: ${result.insertId}`, 'admin');
+        await notifyAdmins(`New user registered`, 'admin');
 
         delete req.session.pendingRegistration;
         res.json({ success: true, message: 'Registration successful.' });
@@ -376,7 +376,7 @@ router.post('/reset-password', async (req, res) => {
         await createNotification(user.user_id, 'Your password has been successfully reset. If you did not make this change, please contact support immediately.', 'system');
         // Notify admins only if the actor is an admin resetting their own password
         if (req.session.user && req.session.user.user_type === 'admin' && req.session.user.user_id === user.user_id) {
-            await notifyAdmins(`Admin ${user.user_id} reset password.`, 'admin');
+            await notifyAdmins(`Admin password reset.`, 'admin');
         }
 
         res.json({ success: true, message: 'Password has been reset successfully.' });

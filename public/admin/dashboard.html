@@ -24,12 +24,10 @@
 
         <div class="row g-3 mb-4">
             <div class="col-12 col-md-6 col-lg-4">
-                <a href="/admin/all_devices.html" style="text-decoration: none; color: inherit;">
-                    <div class="card p-4 text-center">
-                        <h1 id="totalDevices" class="display-4">0</h1>
-                        <p class="text-muted">Total No. of Device</p>
-                    </div>
-                </a>
+                <div class="card p-4 text-center">
+                    <h1 id="totalDevices" class="display-4">0</h1>
+                    <p class="text-muted">Total No. of Device</p>
+                </div>
             </div>
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="card p-4 text-center">
@@ -134,7 +132,7 @@
                         const totalDevices = devicesData.devices.length;
                         document.getElementById('totalDevices').textContent = totalDevices;
                         
-                        const linkedDevices = devicesData.devices.filter(device => device.type === 'linked');
+                        const linkedDevices = devicesData.devices.filter(device => device.status === 'linked' || device.type === 'linked');
                         document.getElementById('totalLinkedDevices').textContent = linkedDevices.length;
                     }
 
@@ -149,11 +147,14 @@
                 }
             }
 
+            // Chart instances
+            let devicesChart, usersChart, linkedDevicesChart;
+
             // Initialize charts
             function initializeCharts() {
                 const devicesPerMonthCtx = document.getElementById('devicesPerMonthChart');
                 if (devicesPerMonthCtx) {
-                    new Chart(devicesPerMonthCtx, {
+                    devicesChart = new Chart(devicesPerMonthCtx, {
                         type: 'bar',
                         data: {
                             labels: [],
@@ -177,7 +178,7 @@
 
                 const newUsersCtx = document.getElementById('newUsersChart');
                 if (newUsersCtx) {
-                    new Chart(newUsersCtx, {
+                    usersChart = new Chart(newUsersCtx, {
                         type: 'line',
                         data: {
                             labels: [],
@@ -202,7 +203,7 @@
 
                 const linkedDevicesCtx = document.getElementById('linkedDevicesChart');
                 if (linkedDevicesCtx) {
-                    new Chart(linkedDevicesCtx, {
+                    linkedDevicesChart = new Chart(linkedDevicesCtx, {
                         type: 'bar',
                         data: {
                             labels: [],
@@ -220,6 +221,81 @@
                             }
                         }
                     });
+                }
+            }
+
+            // Populate charts with data
+            async function populateCharts() {
+                try {
+                    // Get devices data
+                    const devicesRes = await fetch('/api/admin/devices', { credentials: 'include' });
+                    const devicesData = await devicesRes.json();
+                    
+                    // Get users data
+                    const usersRes = await fetch('/api/admin/users', { credentials: 'include' });
+                    const usersData = await usersRes.json();
+
+                    if (devicesData.success && usersData.success) {
+                        // Generate last 6 months labels
+                        const months = [];
+                        const currentDate = new Date();
+                        for (let i = 5; i >= 0; i--) {
+                            const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+                            months.push(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+                        }
+
+                        // Process devices data
+                        const devicesByMonth = new Array(6).fill(0);
+                        const linkedDevicesByMonth = new Array(6).fill(0);
+                        
+                        devicesData.devices.forEach(device => {
+                            const deviceDate = new Date(device.added_at || device.linked_at);
+                            const monthsDiff = (currentDate.getFullYear() - deviceDate.getFullYear()) * 12 + 
+                                             (currentDate.getMonth() - deviceDate.getMonth());
+                            
+                            if (monthsDiff >= 0 && monthsDiff < 6) {
+                                devicesByMonth[5 - monthsDiff]++;
+                                if (device.status === 'linked' || device.type === 'linked') {
+                                    linkedDevicesByMonth[5 - monthsDiff]++;
+                                }
+                            }
+                        });
+
+                        // Process users data
+                        const usersByMonth = new Array(6).fill(0);
+                        usersData.users.forEach(user => {
+                            if (user.user_type !== 'admin') {
+                                const userDate = new Date(user.created_at);
+                                const monthsDiff = (currentDate.getFullYear() - userDate.getFullYear()) * 12 + 
+                                                 (currentDate.getMonth() - userDate.getMonth());
+                                
+                                if (monthsDiff >= 0 && monthsDiff < 6) {
+                                    usersByMonth[5 - monthsDiff]++;
+                                }
+                            }
+                        });
+
+                        // Update charts
+                        if (devicesChart) {
+                            devicesChart.data.labels = months;
+                            devicesChart.data.datasets[0].data = devicesByMonth;
+                            devicesChart.update();
+                        }
+
+                        if (usersChart) {
+                            usersChart.data.labels = months;
+                            usersChart.data.datasets[0].data = usersByMonth;
+                            usersChart.update();
+                        }
+
+                        if (linkedDevicesChart) {
+                            linkedDevicesChart.data.labels = months;
+                            linkedDevicesChart.data.datasets[0].data = linkedDevicesByMonth;
+                            linkedDevicesChart.update();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error populating charts:', error);
                 }
             }
 
@@ -331,12 +407,13 @@
 
                             Swal.fire({
                                 title: 'Success!',
-                                text: 'Device ' + fullSerialNumber + ' has been successfully registered.',
+                                text: 'Device ' + fullSerialNumber + ' has been successfully added.',
                                 icon: 'success',
                                 confirmButtonColor: '#3085d6'
                             });
 
                             fetchAdminData();
+                            await populateCharts();
                         }
                     } catch (error) {
                         console.error('Error:', error);
@@ -357,6 +434,7 @@
             await fetchCSRFToken();
             fetchAdminData();
             initializeCharts();
+            await populateCharts();
             addChartClickHandlers();
             setupAddDeviceForm();
         });

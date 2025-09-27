@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
 // Notify all admins helper (no new files)
-async function notifyAdmins(message, type = 'admin') {
+async function notifyAdmins(message, type = 'system') {
     try {
         await db.query(
             "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, ? FROM users WHERE user_type = 'admin'",
@@ -78,6 +78,18 @@ router.get('/check-link/:serialNumber', isAuthenticated, async (req, res) => {
             });
         }
 
+        const device = devices[0];
+
+        // Check if device is unlinked
+        if (device.status === 'unlinked') {
+            return res.json({ 
+                success: false,
+                message: 'This device has been unlinked and cannot be linked again',
+                isLinked: false,
+                canLink: false
+            });
+        }
+
         const [linkedDevices] = await db.execute(
             'SELECT * FROM linked_devices WHERE serial_number = ?',
             [serialNumber]
@@ -108,8 +120,8 @@ router.get('/', isAuthenticated, async (req, res) => {
     try {
         const userId = req.session.user.user_id;
         const [devices] = await db.execute(
-            'SELECT linked_device_id AS device_id, serial_number, device_name, user_id, linked_at FROM linked_devices WHERE user_id = ?',
-            [userId]
+            'SELECT linked_device_id AS device_id, serial_number, device_name, user_id, linked_at FROM linked_devices WHERE user_id = ? AND status = ?',
+            [userId, 'active']
         );
         res.json({ success: true, devices });
     } catch (error) {
@@ -139,6 +151,16 @@ router.post('/', isAuthenticated, async (req, res) => {
             });
         }
 
+        const device = devices[0];
+        
+        // Check if device is unlinked
+        if (device.status === 'unlinked') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'This device has been unlinked and cannot be linked again' 
+            });
+        }
+
         const [existingLinks] = await db.execute(
             'SELECT * FROM linked_devices WHERE serial_number = ?',
             [deviceSerial]
@@ -156,6 +178,12 @@ router.post('/', isAuthenticated, async (req, res) => {
             [deviceSerial, deviceName, userId]
         );
 
+        // Update device status to linked
+        await db.execute(
+            'UPDATE devices SET status = ? WHERE serial_number = ?',
+            ['linked', deviceSerial]
+        );
+
         // Create notification for device linking (user only)
         await createNotification(userId, `Device "${deviceName}" (${deviceSerial}) has been successfully linked to your account.`, 'device_status');
 
@@ -171,8 +199,17 @@ router.post('/unlink-request/:deviceId', isAuthenticated, async (req, res) => {
     try {
         const userId = req.session.user.user_id;
         const { deviceId } = req.params;
+        const { unlinkReason } = req.body;
         
-        console.log('Unlink request for device:', deviceId, 'by user:', userId); // Debug log
+        // Validate unlink reason
+        if (!unlinkReason || unlinkReason.trim().length < 5) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Please provide a reason for unlinking (at least 5 characters)' 
+            });
+        }
+        
+        console.log('Unlink request for device:', deviceId, 'by user:', userId, 'reason:', unlinkReason); // Debug log
 
         // Check if device exists and belongs to user
         const [devices] = await db.execute(
@@ -201,6 +238,7 @@ router.post('/unlink-request/:deviceId', isAuthenticated, async (req, res) => {
             deviceName: device.device_name,
             serialNumber: device.serial_number,
             userEmail: userEmail,
+            unlinkReason: unlinkReason || 'User requested unlink',
             otpHash,
             otpExpiresAt,
             lastOtpSentAt: Date.now(),
@@ -273,10 +311,28 @@ router.post('/unlink-verify', isAuthenticated, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' });
         }
 
-        // Unlink the device
-        await db.execute(
-            'DELETE FROM linked_devices WHERE linked_device_id = ? AND user_id = ?',
+        // Get device info before unlinking
+        const [deviceInfo] = await db.execute(
+            'SELECT serial_number FROM linked_devices WHERE linked_device_id = ? AND user_id = ?',
             [pending.deviceId, req.session.user.user_id]
+        );
+
+        if (deviceInfo.length === 0) {
+            return res.status(404).json({ success: false, message: 'Device not found' });
+        }
+
+        const serialNumber = deviceInfo[0].serial_number;
+
+        // Update linked_devices status to unlinked instead of deleting
+        await db.execute(
+            'UPDATE linked_devices SET status = ?, unlink_reason = ? WHERE linked_device_id = ? AND user_id = ?',
+            ['unlinked', pending.unlinkReason, pending.deviceId, req.session.user.user_id]
+        );
+
+        // Update devices table status to unlinked
+        await db.execute(
+            'UPDATE devices SET status = ? WHERE serial_number = ?',
+            ['unlinked', serialNumber]
         );
 
         // Create notification for device unlinking (user only)

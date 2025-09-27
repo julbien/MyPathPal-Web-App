@@ -9,7 +9,7 @@ require('dotenv').config();
 // Import security middleware
 const { handleError, handleNotFound } = require('./middleware/errorHandler');
 const { sanitizeInput } = require('./middleware/sanitizer');
-const { rateLimit } = require('./middleware/rateLimiter');
+const { userRateLimit, adminRateLimit } = require('./middleware/rateLimiter');
 const { createToken, validateToken } = require('./middleware/csrf');
 
 const app = express();
@@ -48,9 +48,9 @@ app.use((req, res, next) => {
 app.use(sanitizeInput);
 
 // Rate limiting - Apply general limits only to non-auth APIs
-app.use('/api/user', rateLimit);
-app.use('/api/admin', rateLimit);
-app.use('/api/devices', rateLimit);
+app.use('/api/user', userRateLimit);
+app.use('/api/admin', adminRateLimit);
+app.use('/api/devices', userRateLimit);
 
 // CSRF protection - only for API routes
 app.use('/api', createToken);
@@ -175,7 +175,7 @@ app.listen(port, () => {
                     const message = `Weekly digest: ${devicesCount} devices added this week, ${usersCount} users registered this week.`;
                     // Inline notify admins without new file
                     await db.query(
-                        "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, 'admin' FROM users WHERE user_type = 'admin'",
+                        "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, 'system' FROM users WHERE user_type = 'admin'",
                         [message]
                     );
                 } catch (e) {

@@ -4,7 +4,7 @@ const db = require('../db');
 const { generateToken, tokens } = require('../middleware/csrf');
 
 // Helper to notify all admins (no new files)
-async function notifyAdmins(message, type = 'admin') {
+async function notifyAdmins(message, type = 'system') {
     try {
         await db.query(
             "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, ? FROM users WHERE user_type = 'admin'",
@@ -76,7 +76,7 @@ router.post('/add-device', isAdmin, async (req, res) => {
             [serial_number]
         );
 
-        await notifyAdmins(`Device added by admin ${req.session.user.user_id}: ${serial_number}`, 'admin');
+        await notifyAdmins(`Device added: ${serial_number}`, 'system');
 
         res.status(201).json({
             success: true,
@@ -115,16 +115,26 @@ router.get('/devices', isAdmin, async (req, res) => {
                 ld.linked_device_id AS linked_device_id,
                 ld.user_id AS linked_user_id,
                 ld.device_name,
-                ld.linked_at AS linked_at
+                ld.linked_at AS linked_at,
+                ld.unlink_reason
             FROM devices d
             LEFT JOIN linked_devices ld ON d.serial_number = ld.serial_number
             ORDER BY d.added_at DESC
         `);
         
-        const devicesWithType = devices.map(device => ({
-            ...device,
-            type: device.linked_device_id ? 'linked' : 'admin'
-        }));
+        const devicesWithType = devices.map(device => {
+            let type = 'admin'; // default for unlinked devices
+            if (device.linked_device_id && device.status === 'linked') {
+                type = 'linked';
+            } else if (device.status === 'unlinked') {
+                type = 'unlinked';
+            }
+            
+            return {
+                ...device,
+                type: type
+            };
+        });
         res.json({ success: true, devices: devicesWithType });
     } catch (error) {
         console.error('Error fetching devices:', error);
@@ -202,7 +212,7 @@ router.put('/devices/:deviceId', isAdmin, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Device not found' });
         }
 
-        await notifyAdmins(`Device ${deviceId} status updated to ${status} by admin ${req.session.user.user_id}`, 'admin');
+        await notifyAdmins(`Device ${deviceId} status updated to ${status}`, 'system');
         res.json({ success: true, message: 'Device status updated' });
     } catch (error) {
         console.error('Update device error:', error);
@@ -275,7 +285,6 @@ router.delete('/devices/:deviceId', isAdmin, async (req, res) => {
             [deviceId]
         );
 
-        await notifyAdmins(`Device ${deviceId} deleted by admin ${req.session.user.user_id}`, 'admin');
         res.json({ success: true, message: 'Device deleted successfully' });
     } catch (error) {
         console.error('Delete device error:', error);

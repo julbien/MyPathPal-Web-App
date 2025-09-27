@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../db');
 
 // Notify all admins helper (no new files)
-async function notifyAdmins(message, type = 'admin') {
+async function notifyAdmins(message, type = 'system') {
     try {
         await db.query(
             "INSERT INTO notifications (user_id, message, type) SELECT user_id, ?, ? FROM users WHERE user_type = 'admin'",
@@ -101,8 +101,8 @@ router.get('/devices', isAuthenticated, async (req, res) => {
     try {
         const userId = req.session.user.user_id;
         const [devices] = await db.query(
-            'SELECT * FROM devices WHERE user_id = ?',
-            [userId]
+            'SELECT linked_device_id AS device_id, serial_number, device_name, user_id, linked_at FROM linked_devices WHERE user_id = ? AND status = ?',
+            [userId, 'active']
         );
         res.json({ success: true, devices });
     } catch (error) {
@@ -216,11 +216,7 @@ router.post('/change-password', isAuthenticated, async (req, res) => {
         await db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashedPassword, userId]);
         
         // Create notification for password change (user only)
-        await createNotification(userId, 'Your password has been successfully changed. If you did not make this change, please contact support immediately.', 'system');
-        // Notify admins only if the actor is an admin changing their own password
-        if (req.session.user && req.session.user.user_type === 'admin') {
-            await notifyAdmins(`Admin ${userId} changed password.`, 'admin');
-        }
+        await createNotification(userId, 'Your password has been successfully changed.', 'system');
         
         res.json({ success: true, message: 'Password changed successfully' });
     } catch (error) {
@@ -286,8 +282,8 @@ router.get('/device/status', isAuthenticated, async (req, res) => {
     try {
         const userId = req.session.user.user_id;
         const [devices] = await db.query(
-            'SELECT serial_number, device_name, status, battery_level FROM linked_devices WHERE user_id = ? ORDER BY linked_at DESC LIMIT 1',
-            [userId]
+            'SELECT serial_number, device_name, status, battery_level FROM linked_devices WHERE user_id = ? AND status = ? ORDER BY linked_at DESC LIMIT 1',
+            [userId, 'active']
         );
         if (devices.length === 0) {
             return res.json({ success: true, device: null });

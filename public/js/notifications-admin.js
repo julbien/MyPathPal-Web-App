@@ -85,16 +85,18 @@ function displayNotifications() {
 
 function notifGetNotificationIcon(type) {
     switch (type) {
-        case 'admin': return 'fas fa-user-shield';
         case 'system': return 'fas fa-info-circle';
+        case 'emergency': return 'fas fa-exclamation-triangle';
+        case 'device_status': return 'fas fa-mobile-alt';
         default: return 'fas fa-bell';
     }
 }
 
 function getTypeLabel(type) {
     switch (type) {
-        case 'admin': return 'Admin';
         case 'system': return 'System';
+        case 'emergency': return 'Emergency';
+        case 'device_status': return 'Device';
         default: return 'General';
     }
 }

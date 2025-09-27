@@ -14,14 +14,23 @@ CREATE TABLE users (
 );
 
 -- DEVICES ADDED BY ADMIN
+-- Device Status System:
+-- 'available': Device exists but no user has linked it
+-- 'linked': Device is currently linked to a user
+-- 'unlinked': Device was previously linked but has been unlinked (cannot be linked again)
 CREATE TABLE devices (
     device_id INT AUTO_INCREMENT PRIMARY KEY,
     serial_number VARCHAR(11) NOT NULL UNIQUE,
-    status ENUM('available', 'linked') DEFAULT 'available',
+    status ENUM('available', 'linked', 'unlinked') DEFAULT 'available',
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- DEVICES LINKED BY USERS
+-- Linked Device Status System:
+-- 'active': Device is currently linked and active
+-- 'unlinked': Device was unlinked by user (preserves history and reason)
+-- 'offline': Device is linked but currently offline
+-- unlink_reason: Stores the reason why device was unlinked (shown in tooltips)
 CREATE TABLE linked_devices (
     linked_device_id INT AUTO_INCREMENT PRIMARY KEY,
     serial_number VARCHAR(11) NOT NULL,
@@ -30,7 +39,7 @@ CREATE TABLE linked_devices (
     status ENUM('active', 'unlinked', 'offline') DEFAULT 'active',
     battery_level INT DEFAULT 100,
     linked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_active DATETIME DEFAULT NULL,
+    unlink_reason TEXT DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (serial_number) REFERENCES devices(serial_number)
 );
@@ -38,46 +47,54 @@ CREATE TABLE linked_devices (
 -- GPS LOCATION LOGS
 CREATE TABLE location_logs (
     location_id INT AUTO_INCREMENT PRIMARY KEY,
-    linked_device_id INT NOT NULL,
+    serial_number VARCHAR(11) NOT NULL,
+    user_id INT NOT NULL,
     latitude DECIMAL(10, 7) NOT NULL,
     longitude DECIMAL(10, 7) NOT NULL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (linked_device_id) REFERENCES linked_devices(linked_device_id)
+    FOREIGN KEY (serial_number) REFERENCES devices(serial_number),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 -- OBSTACLE LOGS
 CREATE TABLE obstacle_logs (
     obstacle_id INT AUTO_INCREMENT PRIMARY KEY,
-    linked_device_id INT NOT NULL,
+    serial_number VARCHAR(11) NOT NULL,
     user_id INT NOT NULL,
+    date DATE NOT NULL,
+    time TIME NOT NULL,
     detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     location_lat DECIMAL(10, 7),
     location_lng DECIMAL(10, 7),
-    FOREIGN KEY (linked_device_id) REFERENCES linked_devices(linked_device_id),
+    FOREIGN KEY (serial_number) REFERENCES devices(serial_number),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 -- DAILY USAGE LOGS
 CREATE TABLE usage_logs (
     usage_id INT AUTO_INCREMENT PRIMARY KEY,
-    linked_device_id INT NOT NULL,
+    serial_number VARCHAR(11) NOT NULL,
     user_id INT NOT NULL,
-    date_used DATE NOT NULL,
-    usage_duration_minutes INT DEFAULT 0,
-    FOREIGN KEY (linked_device_id) REFERENCES linked_devices(linked_device_id),
+    date DATE NOT NULL,
+    duration INT DEFAULT 0,
+    battery_used INT DEFAULT 0,
+    FOREIGN KEY (serial_number) REFERENCES devices(serial_number),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 -- EMERGENCY BUTTON LOGS
 CREATE TABLE emergency_logs (
     emergency_id INT AUTO_INCREMENT PRIMARY KEY,
-    linked_device_id INT NOT NULL,
+    serial_number VARCHAR(11) NOT NULL,
     user_id INT NOT NULL,
+    date DATE NOT NULL,
+    time TIME NOT NULL,
+    location VARCHAR(255),
     pressed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     location_lat DECIMAL(10, 7),
     location_lng DECIMAL(10, 7),
     resolved BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (linked_device_id) REFERENCES linked_devices(linked_device_id),
+    FOREIGN KEY (serial_number) REFERENCES devices(serial_number),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 

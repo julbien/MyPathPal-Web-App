@@ -480,3 +480,25 @@ input.is-invalid {
     text-decoration: none;
     color: white;
   }
+
+/* DataTables Styling */
+.table-responsive {
+  overflow-x: auto;
+}
+
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate {
+  margin: 0.5rem 0;
+}
+
+.dataTables_wrapper .dataTables_paginate {
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .dataTables_wrapper .dataTables_paginate {
+    text-align: center;
+  }
+}

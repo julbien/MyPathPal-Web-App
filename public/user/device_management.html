@@ -126,9 +126,47 @@
 
     // Device unlink with OTP verification (similar to registration)
         async function deleteDevice(deviceId) {
-            const result = await Swal.fire({
+            // Step 1: Get unlink reason
+            const { value: unlinkReason } = await Swal.fire({
                 title: 'Unlink Device',
-                text: 'Are you sure you want to unlink this device? A verification code will be sent to your email.',
+                text: 'Please provide a reason for unlinking this device:',
+                input: 'textarea',
+                inputPlaceholder: 'Enter reason for unlinking (e.g., device lost, no longer needed, etc.)',
+                inputAttributes: {
+                    maxlength: 200,
+                    rows: 3
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Continue',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                inputValidator: (value) => {
+                    if (!value || value.trim().length < 5) {
+                        return 'Please provide a reason (at least 5 characters)';
+                    }
+                },
+                customClass: {
+                    popup: 'swal2-popup-small',
+                    title: 'swal2-title-small',
+                    content: 'swal2-content-small',
+                    confirmButton: 'swal2-confirm-button-small',
+                    cancelButton: 'swal2-cancel-button-small'
+                }
+            });
+
+            if (!unlinkReason) return; // User cancelled
+
+            // Step 2: Confirm unlink with reason
+            const result = await Swal.fire({
+                title: 'Confirm Unlink',
+                html: `
+                    <p>You are about to unlink this device with the following reason:</p>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        <strong>Reason:</strong> ${unlinkReason}
+                    </div>
+                    <p>A verification code will be sent to your email.</p>
+                `,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
@@ -146,14 +184,15 @@
 
             if (result.isConfirmed) {
                 try {
-                    // Step 1: Request OTP (similar to registration)
+                    // Step 3: Request OTP with reason (similar to registration)
                     const response = await fetch(`/api/devices/unlink-request/${deviceId}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRF-Token': csrfToken
                         },
-                        credentials: 'include'
+                        credentials: 'include',
+                        body: JSON.stringify({ unlinkReason: unlinkReason.trim() })
                     });
 
                     const data = await response.json();

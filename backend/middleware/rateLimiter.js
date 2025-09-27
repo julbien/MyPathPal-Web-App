@@ -26,11 +26,37 @@ setInterval(() => {
     }
 }, 10 * 60 * 1000);
 
-// Simple rate limiter - 100 requests per 15 minutes
-function rateLimit(req, res, next) {
+// User rate limiter - 100 requests per 15 minutes
+function userRateLimit(req, res, next) {
     const ip = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
     const now = Date.now();
     const maxRequests = 100;
+    const windowMs = 15 * 60 * 1000;
+
+    const currentData = requestCounts.get(ip);
+
+    if (!currentData || (now - currentData.timestamp) > windowMs) {
+        requestCounts.set(ip, { count: 1, timestamp: now });
+    } else {
+        currentData.count++;
+        requestCounts.set(ip, currentData);
+
+        if (currentData.count > maxRequests) {
+            const remainingTime = Math.ceil((windowMs - (now - currentData.timestamp)) / 60000);
+            return res.status(429).json({
+                success: false,
+                message: `Too many requests. Please wait ${remainingTime} minutes.`
+            });
+        }
+    }
+    next();
+}
+
+// Admin rate limiter - 300 requests per 15 minutes
+function adminRateLimit(req, res, next) {
+    const ip = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const maxRequests = 300;
     const windowMs = 15 * 60 * 1000;
 
     const currentData = requestCounts.get(ip);
@@ -121,7 +147,8 @@ function authRateLimit(req, res, next) {
 }
 
 module.exports = {
-    rateLimit,
+    userRateLimit,
+    adminRateLimit,
     loginRateLimit,
     authRateLimit
 };
